@@ -25,11 +25,17 @@ canvas{position:absolute;inset:0}
 /* overlay */
 .ov{position:absolute;inset:0;z-index:15;pointer-events:none}
 /* drag handle */
-.dh{position:absolute;width:22px;height:22px;border-radius:50%;background:var(--red);border:2.5px solid #fff;
+.dh{position:absolute;width:24px;height:24px;border-radius:50%;background:var(--red);border:2.5px solid #fff;
   box-shadow:0 2px 10px rgba(192,57,43,.45);cursor:grab;transform:translate(-50%,-50%);
   z-index:30;pointer-events:all;display:none;transition:box-shadow .15s}
 .dh:hover{box-shadow:0 3px 18px rgba(192,57,43,.6);transform:translate(-50%,-50%) scale(1.14)}
 .dh.act{cursor:grabbing;transform:translate(-50%,-50%) scale(1.06)!important}
+/* angle indicator pill */
+.angle-pill{position:absolute;z-index:25;pointer-events:none;display:none;
+  background:rgba(26,25,22,.78);color:#fff;font-family:'DM Mono',monospace;
+  font-size:10px;font-weight:500;padding:3px 8px;border-radius:20px;white-space:nowrap;
+  transform:translate(-50%,-130%);transition:opacity .2s}
+.angle-pill.show{display:block}
 /* html overlay text classes */
 .ol{position:absolute;pointer-events:none;font-family:'DM Mono',monospace;font-weight:500;
   white-space:nowrap;line-height:1;transform:translate(-50%,-50%)}
@@ -258,7 +264,8 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
     <div class="cw"><canvas id="cv"></canvas></div>
     <div class="ov" id="ov"></div>
     <div class="dh" id="dh"></div>
-    <div class="ht" id="ht" style="opacity:0">↕ Arrastrá para tirar</div>
+    <div class="angle-pill" id="angle-pill">θ = 0°  F = — N</div>
+    <div class="ht" id="ht" style="opacity:0">↕↔ Arrastrá para tirar</div>
   </div>
 
   <!-- CONTROLES -->
@@ -480,10 +487,18 @@ let showDyn=true, showTen=true, showWt=true;
 let lastF=null;
 let archMode='coaxial'; // 'coaxial' | 'cascade' | 'tandem'
 
-// Spring drag physics
-let dragPull=0, dragTarget=0, dragging=false;
-let dragY0=0, dragPull0=0, springV=0;
-const SK=260, SD=24, MAXPULL=230;
+// ═══════════════════════════════════════════════════════════
+//  DRAG STATE — 2D libre con física de ángulo real
+// ═══════════════════════════════════════════════════════════
+// Posición actual del handle relativa al anchor point en reposo
+let dragX=0, dragY=0;       // offsets actuales (px lógicos)
+let dragVX=0, dragVY=0;     // velocidades del spring
+let dragTX=0, dragTY=0;     // targets (donde el usuario arrastra)
+let dragging=false;
+let pointerStartX=0, pointerStartY=0; // posición del puntero al hacer mousedown
+let dragStartX=0, dragStartY=0;       // dragX/Y al hacer mousedown
+const SK=240, SD=22;        // spring stiffness & damping
+const MAX_RADIUS=220;       // radio máximo de arrastre (px)
 
 // Pulley angle tracking
 let topAng=0, botAng=0;
@@ -748,99 +763,125 @@ function scTandem(){
 // ═══════════════════════════════════════════════════════════
 //  MAIN DRAW
 // ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+//  MAIN DRAW
+// ═══════════════════════════════════════════════════════════
 function draw(){
   ctx.clearRect(0,0,CW,CH);
   ctx.fillStyle='#FAFAF9';
   ctx.fillRect(0,0,CW,CH);
 
-  const pull=Math.max(0,dragPull);
-  const lift= N>0 ? pull/N : 0;
+  const pull=Math.max(0, dragY);           // componente vertical ↓
+  const lift=N>0 ? pull/N : 0;
+  // ángulo respecto a la vertical: 0° = recto abajo, 90° = horizontal
+  const theta=Math.atan2(Math.abs(dragX), Math.max(pull, 1));
+  const thetaDeg=theta*180/Math.PI;
 
-  if(sc.mode==='simple')       drawSimple(pull,lift);
-  else if(sc.mode==='few')     drawFew(pull,lift);
+  if(sc.mode==='simple')       drawSimple(pull,lift,theta);
+  else if(sc.mode==='few')     drawFew(pull,lift,theta);
   else if(sc.mode==='cascade') drawCascade(pull,lift);
   else if(sc.mode==='tandem')  drawTandem(pull,lift);
   else                         drawBlock(pull,lift);
 
-  flushOV(pull,lift);
-  posHandle(pull);
+  flushOV(pull,lift,theta);
+  posHandle(pull,theta,thetaDeg);
 }
 
-// ── DRAW: simple (1 pulley) ──
-function drawSimple(pull,lift){
-  const{cx,pr,ceilY,pulleys,loadCX,loadRestY,wW,wH,dynX}=sc;
+// ── DRAW: simple (1 polea fija) ──
+function drawSimple(pull,lift,theta){
+  const{cx,pr,ceilY,pulleys,loadCX,loadRestY,wW,wH}=sc;
   const p=pulleys[0];
   const loadTop=loadRestY-lift;
-  const handleY=sc.ropeEndRestY+pull;
 
-  drawCeil(cx-56,ceilY-14,112);
+  // Posición del handle: anchor en reposo + offset 2D
+  const hx=sc.ropeEndX+dragX;
+  const hy=sc.ropeEndRestY+pull;
 
-  // rope right side (user pulls → goes up to pulley)
-  rope(cx,handleY, cx,p.y-pr);
-  // rope left side (goes from pulley down to load top-center)
-  rope(cx,p.y+pr, cx,loadTop);
+  drawCeil(cx-60,ceilY-14,120);
+
+  // Cuerda del lado izquierdo: polea → carga (vertical)
+  rope(cx, p.y+pr, cx, loadTop);
+
+  // Cuerda del lado derecho: polea → handle (en ángulo)
+  // Punto tangente exacto en el rim de la polea en dirección al handle
+  const dx=hx-p.x, dy=hy-p.y;
+  const dist=Math.hypot(dx,dy)||1;
+  const tx=p.x+(dx/dist)*pr, ty=p.y+(dy/dist)*pr;
+  rope(tx, ty, hx, hy);
+
+  // Línea guía de ángulo (dashed horizontal) cuando hay desvío
+  if(Math.abs(dragX)>6){
+    ctx.save();
+    ctx.strokeStyle='rgba(192,57,43,.18)';
+    ctx.lineWidth=1; ctx.setLineDash([4,4]);
+    ctx.beginPath(); ctx.moveTo(cx,hy); ctx.lineTo(hx,hy); ctx.stroke();
+    ctx.setLineDash([]); ctx.restore();
+  }
 
   drawPulley(p.x,p.y,pr,true,pAng[0]);
   drawBlock2(loadCX-wW/2,loadTop,wW,wH,W+'N');
 
-  if(showWt)  vecArrow(cx+wW*.28,loadTop+wH, cx+wW*.28,loadTop+wH+56,'#C0392B');
-  if(showTen) vecArrow(cx-wW*.28,loadTop,    cx-wW*.28,loadTop-48,'#E74C3C');
-  if(showDyn) drawDyn(dynX,ceilY-14,calcF(),W*1.6);
+  if(showWt)  vecArrow(cx+wW*.3,loadTop+wH, cx+wW*.3,loadTop+wH+54,'#C0392B');
+  if(showTen) vecArrow(cx-wW*.3,loadTop,    cx-wW*.3,loadTop-46,'#E74C3C');
+
+  // Dinamómetro rotado según el ángulo
+  if(showDyn){
+    const F=calcFAngle(theta);
+    drawDynRotated(hx,hy,F,W*1.6,theta);
+  }
 }
 
-// ── DRAW: few pulleys (2-4) ──
-function drawFew(pull,lift){
-  const{ceilY,pulleys,loadCX,loadRestY,wW,wH,dynX,cx}=sc;
+// ── DRAW: few pulleys (2-4) con handle 2D ──
+function drawFew(pull,lift,theta){
+  const{ceilY,pulleys,loadCX,loadRestY,wW,wH,cx}=sc;
   const loadTop=loadRestY-lift;
   const lp=pulleys[N-1];
-  const handleY=sc.ropeEndRestY+pull;
 
-  // ceiling bar spanning all fixed pulleys
+  // Handle 2D
+  const hx=sc.ropeEndX+dragX;
+  const hy=sc.ropeEndRestY+pull;
+
   const fxs=pulleys.filter(p=>p.fixed).map(p=>p.x);
-  const ceilL=Math.min(...fxs)-sc.pr-16;
-  const ceilR=Math.max(...fxs)+sc.pr+16;
-  drawCeil(ceilL,ceilY-14,ceilR-ceilL);
+  drawCeil(Math.min(...fxs)-sc.pr-16, ceilY-14, Math.max(...fxs)-Math.min(...fxs)+sc.pr*2+32);
 
-  // rope segments:
-  // free end → last pulley top
-  rope(lp.x,handleY, lp.x,lp.y-lp.r);
+  // Cuerda: handle → última polea (en ángulo)
+  const dx=hx-lp.x, dy=hy-lp.y;
+  const dist=Math.hypot(dx,dy)||1;
+  const tx=lp.x+(dx/dist)*lp.r, ty=lp.y+(dy/dist)*lp.r;
+  rope(tx,ty, hx,hy);
 
-  // between consecutive pulleys (bottom to bottom)
+  // Cuerdas entre poleas (bottom-to-bottom)
   for(let i=N-1;i>0;i--){
     const a=pulleys[i], b=pulleys[i-1];
-    rope(a.x,a.y+a.r*0.9, b.x,b.y+b.r*0.9);
+    rope(a.x,a.y+a.r*.9, b.x,b.y+b.r*.9);
   }
-
-  // first pulley: one side up to ceiling, other side down to load
+  // Primera polea: sube al techo y baja a la carga
   const fp=pulleys[0];
   rope(fp.x,fp.y-fp.r, fp.x,ceilY);
   rope(fp.x,fp.y+fp.r, loadCX,loadTop);
-
-  // every even-indexed fixed pulley (except 0): rope goes up to ceiling
+  // Poleas fijas adicionales: cuerda al techo
   for(let i=2;i<N;i+=2){
     const p=pulleys[i];
     rope(p.x,p.y-p.r, p.x,ceilY);
   }
 
-  // draw pulleys on top
-  for(let i=0;i<N;i++){
-    const p=pulleys[i];
-    drawPulley(p.x,p.y,p.r,p.fixed,pAng[i]);
-  }
-
+  for(let i=0;i<N;i++) drawPulley(pulleys[i].x,pulleys[i].y,pulleys[i].r,pulleys[i].fixed,pAng[i]);
   drawBlock2(loadCX-wW/2,loadTop,wW,wH,W+'N');
 
   if(showWt)  vecArrow(loadCX+wW*.3,loadTop+wH, loadCX+wW*.3,loadTop+wH+52,'#C0392B');
   if(showTen){
-    const F=calcF();
+    const F=calcFAngle(theta);
     const cnt=Math.min(N,3);
     for(let i=0;i<cnt;i++){
       const p=pulleys[i];
-      vecArrow(p.x+p.r+6,p.y-p.r*.3, p.x+p.r+6,p.y-p.r*.3-38,'#E74C3C');
-      OVQ.push({id:'T'+i, x:p.x+p.r+28, y:p.y-p.r*.3-20, text:'T='+F.toFixed(0)+'N', cls:'ol ltn'});
+      vecArrow(p.x+p.r+6,p.y-p.r*.3, p.x+p.r+6,p.y-p.r*.3-36,'#E74C3C');
+      OVQ.push({id:'T'+i,x:p.x+p.r+28,y:p.y-p.r*.3-18,text:'T='+F.toFixed(0)+'N',cls:'ol ltn'});
     }
   }
-  if(showDyn) drawDyn(dynX,ceilY-14,calcF(),W*1.6);
+  if(showDyn){
+    const F=calcFAngle(theta);
+    drawDynRotated(hx,hy,F,W*1.6,theta);
+  }
 }
 
 // ── DRAW: compact block-and-tackle (5+ pulleys) ──
@@ -1280,57 +1321,46 @@ function rrect(ctx,x,y,w,h,r){
 }
 
 // ═══════════════════════════════════════════════════════════
-//  HTML OVERLAY — crystal-clear text via DOM elements
+//  HTML OVERLAY — texto cristalino via DOM
 // ═══════════════════════════════════════════════════════════
-function flushOV(pull,lift){
+function flushOV(pull,lift,theta=0){
   const ov=document.getElementById('ov');
   const ex={};
   ov.querySelectorAll('[data-oid]').forEach(e=>ex[e.dataset.oid]=e);
   const seen=new Set();
 
-  // Weight vector label (from simple/few modes - also need it for block mode)
   if(showWt){
-    const wLabelX=sc.loadCX+sc.wW*.28+36;
-    const wLabelY=(sc.loadRestY-lift)+sc.wH+28;
-    OVQ.push({id:'wlbl', x:wLabelX, y:wLabelY, text:W+'N', cls:'ol ltn'});
+    OVQ.push({id:'wlbl',
+      x:sc.loadCX+sc.wW*.3+34, y:(sc.loadRestY-lift)+sc.wH+28,
+      text:W+'N', cls:'ol ltn'});
   }
-
-  // Tension labels for simple mode
-  if(showTen && sc.mode==='simple'){
-    const F=calcF();
-    const lt=sc.loadRestY-lift;
-    OVQ.push({id:'T0', x:sc.loadCX-sc.wW*.28+36, y:lt-26, text:'T='+F.toFixed(1)+'N', cls:'ol ltn'});
+  if(showTen&&(sc.mode==='simple'||sc.mode==='few')){
+    const F=calcFAngle(theta);
+    OVQ.push({id:'T0',
+      x:sc.loadCX-sc.wW*.3+34, y:(sc.loadRestY-lift)-24,
+      text:'T='+F.toFixed(1)+'N', cls:'ol ltn'});
   }
-
-  // Distance rulers (only while pulled)
   if(pull>4){
-    const rx=sc.dynX+20;
+    const hx=sc.ropeEndX+dragX;
+    const rx=Math.min(hx+30, CW-60);
     const ry0=sc.ropeEndRestY;
     OVQ.push({id:'rline', raw:true,
-      css:`position:absolute;left:${rx}px;top:${ry0}px;width:1px;height:${pull}px;pointer-events:none;` +
-          `background:repeating-linear-gradient(to bottom,rgba(192,57,43,.5) 0,rgba(192,57,43,.5) 3px,transparent 3px,transparent 6px)`
-    });
+      css:`position:absolute;left:${rx}px;top:${ry0}px;width:1px;height:${pull}px;pointer-events:none;`+
+          `background:repeating-linear-gradient(to bottom,rgba(192,57,43,.5) 0,rgba(192,57,43,.5) 3px,transparent 3px,transparent 6px)`});
     OVQ.push({id:'rlbl', raw:true,
       css:`position:absolute;left:${rx+5}px;top:${ry0+pull/2}px;transform:translateY(-50%);pointer-events:none`,
-      text:(pull/100).toFixed(2)+' m',
-      cls:'ldr'
-    });
+      text:(pull/100).toFixed(2)+' m', cls:'ldr'});
     if(lift>4){
       const lx=sc.loadCX-sc.wW/2-16;
       const lTop=sc.loadRestY-lift;
       OVQ.push({id:'lline', raw:true,
-        css:`position:absolute;left:${lx}px;top:${lTop}px;width:1px;height:${lift}px;pointer-events:none;` +
-            `background:repeating-linear-gradient(to bottom,rgba(44,62,80,.5) 0,rgba(44,62,80,.5) 3px,transparent 3px,transparent 6px)`
-      });
+        css:`position:absolute;left:${lx}px;top:${lTop}px;width:1px;height:${lift}px;pointer-events:none;`+
+            `background:repeating-linear-gradient(to bottom,rgba(44,62,80,.5) 0,rgba(44,62,80,.5) 3px,transparent 3px,transparent 6px)`});
       OVQ.push({id:'llbl', raw:true,
-        css:`position:absolute;left:${lx-44}px;top:${lTop+lift/2}px;transform:translateY(-50%);pointer-events:none`,
-        text:(lift/100).toFixed(2)+' m',
-        cls:'ldl'
-      });
+        css:`position:absolute;left:${lx-46}px;top:${lTop+lift/2}px;transform:translateY(-50%);pointer-events:none`,
+        text:(lift/100).toFixed(2)+' m', cls:'ldl'});
     }
   }
-
-  // Flush queue to DOM
   for(const item of OVQ){
     seen.add(item.id);
     let el=ex[item.id];
@@ -1339,42 +1369,58 @@ function flushOV(pull,lift){
       el.style.cssText=item.css;
       if(item.text!==undefined){ el.textContent=item.text; el.className=item.cls||''; }
     } else {
-      el.className=item.cls;
-      el.style.left=item.x+'px';
-      el.style.top=item.y+'px';
-      el.textContent=item.text;
+      el.className=item.cls; el.style.left=item.x+'px'; el.style.top=item.y+'px'; el.textContent=item.text;
     }
   }
-  // Remove stale
   for(const[k,el] of Object.entries(ex)){ if(!seen.has(k)) el.remove(); }
   OVQ=[];
 }
 
-// ── Handle position ──
-function posHandle(pull){
+// ── Handle 2D + angle pill ──
+function posHandle(pull,theta=0,thetaDeg=0){
   const dh=document.getElementById('dh');
   const ht=document.getElementById('ht');
-  if(sc.ropeEndX===undefined){ dh.style.display='none'; return; }
+  const pill=document.getElementById('angle-pill');
+  if(sc.ropeEndX===undefined){ dh.style.display='none'; pill.classList.remove('show'); return; }
+  const hx=sc.ropeEndX+dragX;
+  const hy=sc.ropeEndRestY+pull;
   dh.style.display='block';
-  dh.style.left=sc.ropeEndX+'px';
-  dh.style.top=(sc.ropeEndRestY+pull)+'px';
-  ht.style.left=(sc.ropeEndX+14)+'px';
-  ht.style.top=(sc.ropeEndRestY+4)+'px';
-  ht.style.opacity=(pull<3&&!dragging)?'1':'0';
+  dh.style.left=hx+'px';
+  dh.style.top=hy+'px';
+  const rotDeg=dragX<0?-thetaDeg:thetaDeg;
+  dh.style.transform=`translate(-50%,-50%) rotate(${rotDeg.toFixed(1)}deg)`;
+  ht.style.left=(hx+16)+'px';
+  ht.style.top=(hy+4)+'px';
+  ht.style.opacity=(pull<3&&Math.abs(dragX)<3&&!dragging)?'1':'0';
+  const F=calcFAngle(theta);
+  const isImpossible=thetaDeg>=89;
+  pill.classList.toggle('show', pull>4||Math.abs(dragX)>4);
+  pill.style.left=hx+'px';
+  pill.style.top=(hy-22)+'px';
+  pill.style.transform='translate(-50%,-100%)';
+  pill.textContent=isImpossible
+    ?'θ='+Math.round(thetaDeg)+'° · IMPOSIBLE'
+    :'θ='+Math.round(thetaDeg)+'° · F='+F.toFixed(1)+' N';
+  pill.style.background=isImpossible?'rgba(192,57,43,.9)':'rgba(26,25,22,.78)';
 }
 
 // ═══════════════════════════════════════════════════════════
-//  DRAG INTERACTION
+//  DRAG INTERACTION — 2D libre
 // ═══════════════════════════════════════════════════════════
 const dhEl=document.getElementById('dh');
 dhEl.addEventListener('mousedown',startDrag);
 dhEl.addEventListener('touchstart',startDrag,{passive:false});
 
+function getVizOffset(){
+  return document.getElementById('viz').getBoundingClientRect();
+}
 function startDrag(e){
   e.preventDefault();
   dragging=true; dhEl.classList.add('act');
-  const cy=e.touches?e.touches[0].clientY:e.clientY;
-  dragY0=cy; dragPull0=dragPull; springV=0;
+  const pt=e.touches?e.touches[0]:e;
+  pointerStartX=pt.clientX; pointerStartY=pt.clientY;
+  dragStartX=dragX; dragStartY=dragY;
+  dragVX=0; dragVY=0;
   document.addEventListener('mousemove',onMove);
   document.addEventListener('touchmove',onMove,{passive:false});
   document.addEventListener('mouseup',endDrag);
@@ -1383,36 +1429,53 @@ function startDrag(e){
 function onMove(e){
   if(!dragging) return;
   e.preventDefault();
-  const cy=e.touches?e.touches[0].clientY:e.clientY;
-  dragTarget=Math.max(0,Math.min(MAXPULL, dragPull0+(cy-dragY0)));
+  const pt=e.touches?e.touches[0]:e;
+  const ddx=(pt.clientX-pointerStartX);
+  const ddy=(pt.clientY-pointerStartY);
+  // Calcular posición deseada
+  let nx=dragStartX+ddx;
+  let ny=dragStartY+ddy;
+  // ny debe ser ≥ 0 (no se puede empujar hacia arriba)
+  ny=Math.max(0,ny);
+  // Limitar al radio máximo
+  const radius=Math.hypot(nx,ny);
+  if(radius>MAX_RADIUS){ const s=MAX_RADIUS/radius; nx*=s; ny*=s; }
+  dragTX=nx; dragTY=ny;
 }
 function endDrag(){
-  dragging=false; dhEl.classList.remove('act'); dragTarget=0;
+  dragging=false; dhEl.classList.remove('act');
+  dragTX=0; dragTY=0;
   document.removeEventListener('mousemove',onMove);
   document.removeEventListener('touchmove',onMove);
   document.removeEventListener('mouseup',endDrag);
   document.removeEventListener('touchend',endDrag);
 }
-
-// ═══════════════════════════════════════════════════════════
-//  ANIMATION LOOP (spring physics)
-// ═══════════════════════════════════════════════════════════
 let lastTS=0;
 function loop(ts){
   requestAnimationFrame(loop);
   const dt=Math.min((ts-lastTS)/1000,.04); lastTS=ts;
 
-  // Spring toward target
   if(dragging){
-    dragPull+=(dragTarget-dragPull)*.42; springV=0;
+    // Seguimiento suave del puntero
+    dragX+=(dragTX-dragX)*.38;
+    dragY+=(dragTY-dragY)*.38;
+    dragVX=0; dragVY=0;
   } else {
-    const acc=SK*(-dragPull)-SD*springV;
-    springV+=acc*dt; dragPull+=springV*dt;
-    if(Math.abs(dragPull)<.35&&Math.abs(springV)<.35){ dragPull=0; springV=0; }
+    // Spring de vuelta al origen (0,0)
+    const ax=SK*(-dragX)-SD*dragVX;
+    const ay=SK*(-dragY)-SD*dragVY;
+    dragVX+=ax*dt; dragVY+=ay*dt;
+    dragX+=dragVX*dt; dragY+=dragVY*dt;
+    if(Math.abs(dragX)<.3&&Math.abs(dragY)<.3&&Math.abs(dragVX)<.3&&Math.abs(dragVY)<.3){
+      dragX=0; dragY=0; dragVX=0; dragVY=0;
+    }
   }
 
-  // Pulley rotation
-  const delta=dragPull-prevPull;
+  // La tracción vertical es el componente Y positivo (hacia abajo)
+  const pull=Math.max(0, dragY);
+
+  // Rotación de poleas proporcional al pull vertical
+  const delta=pull-prevPull;
   if(Math.abs(delta)>.04){
     if(sc.mode==='block'||sc.mode==='cascade'||sc.mode==='tandem'){
       const PR=sc.PR||16;
@@ -1425,14 +1488,14 @@ function loop(ts){
       }
     }
   }
-  prevPull=dragPull;
+  prevPull=pull;
 
   draw();
 
-  // Update distance display
-  const p=Math.max(0,dragPull);
-  document.getElementById('drs').textContent=(p/100).toFixed(2)+' m';
-  document.getElementById('dls').textContent=(N>0?p/N/100:0).toFixed(2)+' m';
+  // Distancia en UI
+  const lift=N>0?pull/N:0;
+  document.getElementById('drs').textContent=(pull/100).toFixed(2)+' m';
+  document.getElementById('dls').textContent=(lift/100).toFixed(2)+' m';
 }
 requestAnimationFrame(t=>{ lastTS=t; requestAnimationFrame(loop); });
 
@@ -1442,6 +1505,47 @@ requestAnimationFrame(t=>{ lastTS=t; requestAnimationFrame(loop); });
 function calcF(){
   const nm=Math.floor(N/2);
   return N>0?(W+Wp*nm)/N:0;
+}
+// Fuerza real con ángulo θ respecto a la vertical: F = F_ideal / cos(θ)
+function calcFAngle(theta){
+  const Fideal=calcF();
+  const cosT=Math.cos(theta);
+  if(cosT<0.017) return Infinity; // ≈ 89°+
+  return Fideal/cosT;
+}
+// Dinamómetro rotado según ángulo de tirón
+function drawDynRotated(hx,hy,F,maxF,theta){
+  const h=90, w=22, rx=4;
+  // rotar el canvas alrededor del punto del handle
+  const ang=Math.atan2(dragX, Math.max(dragY,1)); // ángulo desde vertical
+  ctx.save();
+  ctx.translate(hx,hy);
+  ctx.rotate(dragX<0?-ang:ang);
+  // dibujar hacia arriba desde el handle
+  const y0=-h-8;
+  ctx.shadowColor='rgba(0,0,0,.1)'; ctx.shadowBlur=4; ctx.shadowOffsetY=2;
+  rrect(ctx,-w/2,y0,w,h,rx); ctx.fillStyle='#F4EFE6'; ctx.fill();
+  ctx.shadowColor='transparent';
+  ctx.strokeStyle='#C8BCAC'; ctx.lineWidth=.8;
+  rrect(ctx,-w/2,y0,w,h,rx); ctx.stroke();
+  rrect(ctx,-w/2+2,y0+2,w-4,h-4,rx-1); ctx.fillStyle='#EDE5D5'; ctx.fill();
+  const ratio=F===Infinity?1:Math.min(F/Math.max(maxF,1),1);
+  const fH=(h-12)*ratio;
+  if(fH>0){
+    const fg=ctx.createLinearGradient(0,y0+h-6,0,y0+h-6-fH);
+    fg.addColorStop(0,'#E74C3C'); fg.addColorStop(.5,'#C0392B'); fg.addColorStop(1,'#962019');
+    rrect(ctx,-w/2+3,y0+h-6-fH,w-6,fH,2); ctx.fillStyle=fg; ctx.fill();
+  }
+  for(let i=0;i<=8;i++){
+    const ty=y0+h-6-(h-12)*i/8;
+    ctx.strokeStyle=i%4===0?'#8A7A6A':'#C4B8AC'; ctx.lineWidth=i%4===0?.8:.35;
+    ctx.beginPath(); ctx.moveTo(-w/2+3,ty); ctx.lineTo(i%4===0?w/2-3:0,ty); ctx.stroke();
+  }
+  rrect(ctx,-w/2,y0,w,h,rx); ctx.strokeStyle='#C8BCAC'; ctx.lineWidth=.7; ctx.stroke();
+  ctx.restore();
+  // Label F (siempre horizontal via OVQ)
+  const label=F===Infinity?'IMPOSIBLE':F.toFixed(1)+' N';
+  OVQ.push({id:'dyn', x:hx+(dragX<0?-36:36), y:hy-h/2, text:label, cls:'ol ldn'});
 }
 
 function updateUI(){
@@ -1533,7 +1637,7 @@ document.querySelectorAll('.arch-opt').forEach(btn=>{
     archMode=btn.dataset.arch;
     document.querySelectorAll('.arch-opt').forEach(b=>b.classList.remove('sel'));
     btn.classList.add('sel');
-    dragPull=0; dragTarget=0; springV=0; prevPull=0;
+    dragX=0; dragY=0; dragVX=0; dragVY=0; dragTX=0; dragTY=0; prevPull=0;
     topAng=0; botAng=0;
     buildScene(); updateUI();
   });
@@ -1545,7 +1649,8 @@ function syncN(){
   document.getElementById('ns').value=N;
   pAng=new Array(N).fill(0);
   topAng=0; botAng=0;
-  dragPull=0; dragTarget=0; springV=0; prevPull=0;
+  dragX=0; dragY=0; dragVX=0; dragVY=0; dragTX=0; dragTY=0;
+  prevPull=0;
   buildScene(); updateUI();
   const nm=Math.floor(N/2), nf=Math.ceil(N/2);
 
