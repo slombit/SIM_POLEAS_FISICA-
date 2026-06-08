@@ -1,0 +1,1604 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simulador de Poleas — Física</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --red:#C0392B;--red2:#E74C3C;--rp:#FDEDEC;
+  --bg:#FAFAF9;--sf:#FFF;--br:#E8E6E3;--br2:#D5D1CB;
+  --tx:#1A1916;--t2:#5C5A55;--t3:#9B9790;
+}
+html,body{height:100%;overflow:hidden;font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--tx)}
+.app{display:grid;grid-template-columns:1fr 342px;height:100vh}
+/* VIZ */
+.viz{background:var(--sf);position:relative;overflow:hidden;border-right:1px solid var(--br)}
+.vh{position:absolute;inset:0 0 auto 0;padding:17px 22px 13px;display:flex;align-items:center;justify-content:space-between;z-index:20;background:linear-gradient(to bottom,#fff 65%,transparent)}
+.vt{font-size:11px;font-weight:500;color:var(--t3);letter-spacing:.07em;text-transform:uppercase}
+.bge{padding:3px 10px;background:var(--rp);color:var(--red);border-radius:4px;font-size:10px;font-weight:600;font-family:'DM Mono',monospace}
+.cw{position:absolute;inset:0}
+canvas{position:absolute;inset:0}
+/* overlay */
+.ov{position:absolute;inset:0;z-index:15;pointer-events:none}
+/* drag handle */
+.dh{position:absolute;width:22px;height:22px;border-radius:50%;background:var(--red);border:2.5px solid #fff;
+  box-shadow:0 2px 10px rgba(192,57,43,.45);cursor:grab;transform:translate(-50%,-50%);
+  z-index:30;pointer-events:all;display:none;transition:box-shadow .15s}
+.dh:hover{box-shadow:0 3px 18px rgba(192,57,43,.6);transform:translate(-50%,-50%) scale(1.14)}
+.dh.act{cursor:grabbing;transform:translate(-50%,-50%) scale(1.06)!important}
+/* html overlay text classes */
+.ol{position:absolute;pointer-events:none;font-family:'DM Mono',monospace;font-weight:500;
+  white-space:nowrap;line-height:1;transform:translate(-50%,-50%)}
+.lwt{font-size:12px;color:#fff;background:#2C3E50;padding:3px 9px;border-radius:5px}
+.ldn{font-size:10px;color:var(--t2);background:rgba(255,255,255,.97);padding:2px 7px;border-radius:3px;border:1px solid var(--br2)}
+.ltn{font-size:9px;color:var(--red);background:rgba(255,255,255,.94);padding:2px 5px;border-radius:3px;border:1px solid rgba(192,57,43,.22)}
+.ldr{font-size:9px;font-family:'DM Mono',monospace;color:var(--red);background:rgba(255,255,255,.93);padding:2px 5px;border-radius:3px;border:1px solid rgba(192,57,43,.2)}
+.ldl{font-size:9px;font-family:'DM Mono',monospace;color:#2C3E50;background:rgba(255,255,255,.93);padding:2px 5px;border-radius:3px;border:1px solid rgba(44,62,80,.18)}
+/* hint bubble */
+.ht{position:absolute;font-size:10px;font-weight:500;color:var(--t3);pointer-events:none;
+  z-index:25;white-space:nowrap;background:rgba(255,255,255,.92);
+  padding:3px 8px;border-radius:4px;border:1px solid var(--br);transition:opacity .5s}
+/* CTRL */
+.ctrl{background:var(--sf);overflow-y:auto;display:flex;flex-direction:column;border-left:1px solid var(--br)}
+.ctrl::-webkit-scrollbar{width:4px}
+.ctrl::-webkit-scrollbar-thumb{background:var(--br2);border-radius:2px}
+.ch{padding:18px 22px 14px;border-bottom:1px solid var(--br)}
+.ch h1{font-size:17px;font-weight:600;line-height:1.2}
+.ch p{font-size:11px;color:var(--t3);margin-top:3px}
+.sec{padding:14px 22px;border-bottom:1px solid var(--br)}
+.sl{font-size:10px;font-weight:600;color:var(--t3);letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px}
+.fd{margin-bottom:12px}.fd:last-child{margin-bottom:0}
+.fl{font-size:12px;font-weight:500;color:var(--t2);margin-bottom:5px;display:flex;justify-content:space-between;align-items:center}
+.fl span{font-size:11px;font-weight:600;color:var(--red);font-family:'DM Mono',monospace}
+.ir{display:flex;align-items:center;gap:8px}
+input[type=range]{-webkit-appearance:none;width:100%;height:4px;background:var(--br);border-radius:2px;outline:none;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:15px;background:var(--red);border-radius:50%;cursor:pointer;box-shadow:0 0 0 3px var(--rp);transition:transform .13s}
+input[type=range]:hover::-webkit-slider-thumb{transform:scale(1.2)}
+input[type=number]{width:68px;height:30px;border:1px solid var(--br2);border-radius:6px;padding:0 7px;font-size:12px;font-family:'DM Mono',monospace;color:var(--tx);background:var(--bg);outline:none;transition:border-color .2s,box-shadow .2s;-moz-appearance:textfield}
+input[type=number]:focus{border-color:var(--red);box-shadow:0 0 0 3px var(--rp)}
+input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
+.un{font-size:10px;font-weight:500;color:var(--t3);flex-shrink:0}
+.cr{display:flex;align-items:center;gap:8px}
+.cb{width:30px;height:30px;border:1px solid var(--br2);border-radius:7px;background:var(--sf);color:var(--tx);font-size:17px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .12s;user-select:none;flex-shrink:0}
+.cb:hover{border-color:var(--red);color:var(--red);background:var(--rp)}
+.cb:active{transform:scale(.84)}
+.cv2{font-size:20px;font-weight:600;font-family:'DM Mono',monospace;min-width:44px;text-align:center}
+.sw{flex:1}
+.tg{display:flex;flex-direction:column;gap:8px}
+.tr{display:flex;align-items:center;justify-content:space-between;padding:7px 9px;background:var(--bg);border-radius:7px;cursor:pointer;transition:background .13s;user-select:none}
+.tr:hover{background:var(--rp)}
+.tl{font-size:12px;font-weight:500;color:var(--t2)}
+.ts{width:34px;height:19px;background:var(--br2);border-radius:10px;position:relative;transition:background .2s;flex-shrink:0}
+.ts.on{background:var(--red)}
+.tk{position:absolute;top:2px;left:2px;width:15px;height:15px;background:#fff;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.18);transition:transform .22s cubic-bezier(.34,1.56,.64,1)}
+.ts.on .tk{transform:translateX(15px)}
+/* result */
+.rs{padding:14px 22px;background:var(--sf);flex-shrink:0}
+.rc{background:var(--bg);border:1px solid var(--br);border-radius:11px;padding:14px;position:relative;overflow:hidden}
+.rc::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--red);border-radius:3px 0 0 3px}
+.rl{font-size:10px;font-weight:600;color:var(--t3);letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px}
+.rv{font-size:26px;font-weight:600;color:var(--red);font-family:'DM Mono',monospace;line-height:1}
+.rv sup{font-size:12px;font-weight:400;color:var(--t3);margin-left:2px}
+.rb{font-size:11px;color:var(--t3);font-family:'DM Mono',monospace;line-height:1.9;margin-top:3px}
+.rb .v{color:var(--red2);font-weight:500}
+.dc{background:var(--bg);border:1px solid var(--br);border-radius:11px;padding:12px 14px;margin-top:10px}
+.dro{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px}
+.dro:last-child{margin-bottom:0}
+.dbl{font-size:11px;color:var(--t2);display:flex;align-items:center;gap:5px}
+.dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.dvl{font-size:12px;font-weight:600;font-family:'DM Mono',monospace;color:var(--tx)}
+.sn{padding:6px 14px;background:var(--rp);border-radius:5px;font-size:10px;color:var(--red);font-weight:500;text-align:center;margin:0 22px 10px;display:none}
+.sn.on{display:block}
+@keyframes nf{0%{transform:scale(1.1)}100%{transform:scale(1)}}
+.nfl{animation:nf .28s cubic-bezier(.34,1.56,.64,1)}
+
+/* ── AUTORÍA ── */
+#autor-tag{font-size:10px;font-weight:700;color:var(--red);letter-spacing:.04em;font-style:normal}
+
+/* ── SELECTOR ARQUITECTURA ── */
+#sec-arch{overflow:hidden;max-height:0;opacity:0;transition:max-height .35s cubic-bezier(.4,0,.2,1),opacity .25s;padding:0 22px}
+#sec-arch.vis{max-height:200px;opacity:1;padding:14px 22px;border-bottom:1px solid var(--br)}
+.arch-grid{display:flex;flex-direction:column;gap:6px;margin-top:2px}
+.arch-opt{
+  display:flex;align-items:flex-start;gap:10px;padding:8px 10px;border-radius:8px;
+  border:1.5px solid var(--br);background:var(--bg);cursor:pointer;
+  transition:border-color .15s,background .15s;user-select:none;
+}
+.arch-opt:hover{border-color:var(--br2);background:#F3EEE9}
+.arch-opt.sel{border-color:var(--red);background:var(--rp)}
+.arch-radio{width:14px;height:14px;border-radius:50%;border:1.5px solid var(--br2);
+  flex-shrink:0;margin-top:2px;display:flex;align-items:center;justify-content:center;
+  transition:border-color .15s,background .15s}
+.arch-opt.sel .arch-radio{border-color:var(--red);background:var(--red)}
+.arch-opt.sel .arch-radio::after{content:'';width:5px;height:5px;border-radius:50%;background:#fff}
+.arch-name{font-size:11px;font-weight:600;color:var(--tx);line-height:1.2}
+.arch-opt.sel .arch-name{color:var(--red)}
+.arch-desc{font-size:10px;color:var(--t3);margin-top:1px;line-height:1.35}
+
+/* ── BOTÓN "VER CÁLCULOS" ── */
+.calc-btn{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  width:100%;padding:11px 18px;margin:0;
+  background:var(--red);color:#fff;
+  border:none;border-radius:0;cursor:pointer;
+  font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;
+  letter-spacing:.04em;transition:background .15s,transform .1s;
+  flex-shrink:0;
+}
+.calc-btn:hover{background:#A93226}
+.calc-btn:active{transform:scaleY(.95)}
+.calc-btn svg{flex-shrink:0;opacity:.85}
+
+/* ── OFF-CANVAS OVERLAY ── */
+.oc-backdrop{
+  position:fixed;inset:0;background:rgba(26,25,22,.38);
+  z-index:100;opacity:0;pointer-events:none;
+  transition:opacity .32s cubic-bezier(.4,0,.2,1);
+}
+.oc-backdrop.open{opacity:1;pointer-events:all}
+
+/* ── OFF-CANVAS PANEL ── */
+.oc-panel{
+  position:fixed;top:0;right:0;bottom:0;
+  width:min(420px,100vw);
+  background:var(--sf);
+  box-shadow:-8px 0 40px rgba(0,0,0,.14);
+  z-index:101;
+  transform:translateX(100%);
+  transition:transform .35s cubic-bezier(.4,0,.2,1);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.oc-panel.open{transform:translateX(0)}
+
+/* panel header */
+.oc-hdr{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:20px 24px 16px;border-bottom:1px solid var(--br);flex-shrink:0;
+}
+.oc-title{font-size:15px;font-weight:600;color:var(--tx);line-height:1.2}
+.oc-sub{font-size:11px;color:var(--t3);margin-top:2px}
+.oc-close{
+  width:32px;height:32px;border:1px solid var(--br2);border-radius:8px;
+  background:var(--bg);cursor:pointer;display:flex;align-items:center;justify-content:center;
+  color:var(--t2);font-size:16px;transition:all .13s;flex-shrink:0;
+}
+.oc-close:hover{background:var(--rp);border-color:var(--red);color:var(--red)}
+
+/* panel scroll body */
+.oc-body{overflow-y:auto;flex:1;padding:24px}
+.oc-body::-webkit-scrollbar{width:4px}
+.oc-body::-webkit-scrollbar-thumb{background:var(--br2);border-radius:2px}
+
+/* system info pill */
+.sys-pill{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:5px 12px;background:var(--rp);border-radius:20px;
+  font-size:11px;font-weight:600;color:var(--red);font-family:'DM Mono',monospace;
+  margin-bottom:20px;
+}
+.sys-pill-dot{width:6px;height:6px;border-radius:50%;background:var(--red)}
+
+/* step cards */
+.step-card{
+  background:var(--bg);border:1px solid var(--br);border-radius:12px;
+  padding:20px 22px;margin-bottom:14px;position:relative;overflow:hidden;
+}
+.step-card::before{
+  content:'';position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:3px 0 0 3px;
+}
+.step-card.s1::before{background:#B8A898}
+.step-card.s2::before{background:var(--red2)}
+.step-card.s3::before{background:var(--red);box-shadow:0 0 8px rgba(192,57,43,.3)}
+
+.step-tag{
+  font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--t3);margin-bottom:10px;display:flex;align-items:center;gap:6px;
+}
+.step-num{
+  width:17px;height:17px;border-radius:50%;background:var(--br2);color:var(--t2);
+  font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.step-card.s2 .step-num{background:rgba(231,76,60,.15);color:var(--red2)}
+.step-card.s3 .step-num{background:rgba(192,57,43,.15);color:var(--red)}
+
+.step-formula{
+  font-family:'DM Mono',monospace;font-size:22px;font-weight:500;
+  color:var(--tx);line-height:1.4;word-break:break-all;
+}
+.step-formula .sym{color:var(--t3);font-weight:400}
+.step-formula .val{color:var(--red);font-weight:600}
+.step-formula .eq{color:var(--t2)}
+.step-card.s3 .step-formula{font-size:28px;font-weight:600;color:var(--red)}
+
+/* concept note */
+.oc-note{
+  background:var(--bg);border:1px solid var(--br);border-radius:10px;
+  padding:14px 16px;margin-bottom:14px;
+}
+.oc-note-ttl{font-size:10px;font-weight:700;color:var(--t3);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px}
+.oc-note-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--br)}
+.oc-note-row:last-child{border-bottom:none;padding-bottom:0}
+.oc-note-lbl{font-size:11px;color:var(--t2)}
+.oc-note-val{font-size:11px;font-weight:600;font-family:'DM Mono',monospace;color:var(--tx)}
+
+/* conservation box */
+.conserv-box{
+  background:linear-gradient(135deg,#FDEDEC 0%,#fff 100%);
+  border:1px solid rgba(192,57,43,.2);border-radius:10px;
+  padding:14px 16px;margin-bottom:14px;
+}
+.conserv-title{font-size:10px;font-weight:700;color:var(--red);letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px}
+.conserv-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.conserv-row:last-child{margin-bottom:0}
+.conserv-icon{font-size:14px;flex-shrink:0}
+.conserv-text{font-size:11px;color:var(--t2);line-height:1.5}
+.conserv-text strong{color:var(--red);font-weight:600}
+
+/* divider */
+.oc-div{height:1px;background:var(--br);margin:18px 0}
+
+@media(max-width:600px){
+  .oc-panel{width:100vw}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- VISUALIZACIÓN -->
+  <div class="viz" id="viz">
+    <div class="vh">
+      <span class="vt">Visualización del sistema</span>
+      <span class="bge" id="badge">1 polea fija</span>
+    </div>
+    <div class="cw"><canvas id="cv"></canvas></div>
+    <div class="ov" id="ov"></div>
+    <div class="dh" id="dh"></div>
+    <div class="ht" id="ht" style="opacity:0">↕ Arrastrá para tirar</div>
+  </div>
+
+  <!-- CONTROLES -->
+  <div class="ctrl">
+    <div class="ch">
+      <h1>Simulador de física — ventaja mecánica</h1>
+      <p style="margin-top:4px;display:flex;align-items:center;gap:6px">
+        <span style="font-size:11px;color:var(--t3)">Sistema de poleas</span>
+        <span style="color:var(--br2);font-size:10px">·</span>
+        <small id="autor-tag">Patrone</small>
+      </p>
+    </div>
+    <div class="sec">
+      <div class="sl">Cantidad de poleas</div>
+      <div class="fd">
+        <div class="cr">
+          <button class="cb" id="bm">−</button>
+          <div class="cv2" id="nd">1</div>
+          <button class="cb" id="bp">+</button>
+          <div class="sw"><input type="range" id="ns" min="1" max="50" value="1"></div>
+        </div>
+      </div>
+    </div>
+    <div class="sec">
+      <div class="sl">Pesos</div>
+      <div class="fd">
+        <div class="fl">Peso de la carga<span id="dw">100 N</span></div>
+        <div class="ir"><input type="number" id="wi" value="100" min="0" max="9999"><span class="un">Newton</span></div>
+      </div>
+      <div class="fd">
+        <div class="fl">Peso poleas sueltas<span id="dwp">0 N</span></div>
+        <div class="ir"><input type="number" id="wpi" value="0" min="0" max="9999"><span class="un">N / polea</span></div>
+      </div>
+    </div>
+    <div class="sec">
+      <div class="sl">Opciones visuales</div>
+      <div class="tg">
+        <div class="tr" id="trd"><span class="tl">Dinamómetro</span><div class="ts on" id="tsd"><div class="tk"></div></div></div>
+        <div class="tr" id="trt"><span class="tl">Mostrar tensiones</span><div class="ts on" id="tst"><div class="tk"></div></div></div>
+        <div class="tr" id="trw"><span class="tl">Mostrar peso total</span><div class="ts on" id="tsw"><div class="tk"></div></div></div>
+      </div>
+    </div>
+
+    <!-- SELECTOR ARQUITECTURA — solo visible con N≥5 -->
+    <div id="sec-arch">
+      <div class="sl">Arquitectura de visualización</div>
+      <div class="arch-grid">
+        <div class="arch-opt sel" data-arch="coaxial">
+          <div class="arch-radio"></div>
+          <div>
+            <div class="arch-name">⚙️ Coaxial — Grúa industrial</div>
+            <div class="arch-desc">Bloques compactos con cuerdas densas paralelas</div>
+          </div>
+        </div>
+        <div class="arch-opt" data-arch="cascade">
+          <div class="arch-radio"></div>
+          <div>
+            <div class="arch-name">🏔️ Compuesto — Rescate / náutica</div>
+            <div class="arch-desc">Bloques independientes en cascada escalonada</div>
+          </div>
+        </div>
+        <div class="arch-opt" data-arch="tandem">
+          <div class="arch-radio"></div>
+          <div>
+            <div class="arch-name">🏗️ Tándem — Puente grúa</div>
+            <div class="arch-desc">Poleas fijas distribuidas en viga horizontal</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="rs">
+      <div class="rc">
+        <div class="rl">Fuerza necesaria</div>
+        <div class="rb" id="fml">F = (Peso + Peso Poleas) / n</div>
+        <div style="margin-top:6px"><div class="rv" id="rvl">—</div></div>
+        <div class="rb" id="fex" style="margin-top:4px"></div>
+      </div>
+      <div class="dc">
+        <div class="rl" style="margin-bottom:8px">Cinemática — arrastrá la cuerda</div>
+        <div class="dro"><span class="dbl"><span class="dot" style="background:var(--red)"></span>Recorrido cuerda</span><span class="dvl" id="drs">0.00 m</span></div>
+        <div class="dro"><span class="dbl"><span class="dot" style="background:#2C3E50"></span>Sube la carga</span><span class="dvl" id="dls">0.00 m</span></div>
+        <div class="dro" style="margin-top:6px;border-top:1px solid var(--br);padding-top:6px">
+          <span class="dbl" style="font-size:10px;color:var(--t3)">Ventaja mecánica</span>
+          <span class="dvl" style="font-size:11px;color:var(--t3)" id="dvm">×1</span>
+        </div>
+      </div>
+    </div>
+    <div class="sn" id="sn"></div>
+
+    <!-- BOTÓN VER CÁLCULOS -->
+    <button class="calc-btn" id="open-calc" aria-label="Ver cálculos detallados">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/>
+        <rect x="2" y="9" width="5" height="5" rx="1"/><path d="M9 11.5h5M11.5 9v5"/>
+      </svg>
+      Ver Cálculos Detallados
+    </button>
+  </div><!-- /ctrl -->
+</div><!-- /app -->
+
+<!-- ── BACKDROP ── -->
+<div class="oc-backdrop" id="oc-backdrop"></div>
+
+<!-- ── OFF-CANVAS PANEL ── -->
+<div class="oc-panel" id="oc-panel" role="dialog" aria-label="Cálculos detallados">
+
+  <!-- Header -->
+  <div class="oc-hdr">
+    <div>
+      <div class="oc-title">Cálculos detallados</div>
+      <div class="oc-sub">Paso a paso · se actualiza en tiempo real</div>
+    </div>
+    <button class="oc-close" id="close-calc" aria-label="Cerrar">✕</button>
+  </div>
+
+  <!-- Body -->
+  <div class="oc-body">
+
+    <!-- Sistema pill -->
+    <div class="sys-pill" id="oc-pill">
+      <span class="sys-pill-dot"></span>
+      <span id="oc-pill-txt">1 polea fija</span>
+    </div>
+
+    <!-- PASO 1: Fórmula teórica -->
+    <div class="step-card s1">
+      <div class="step-tag">
+        <span class="step-num">1</span>
+        Fórmula general del sistema
+      </div>
+      <div class="step-formula" id="oc-step1">
+        <span class="eq">F</span>
+        <span class="sym"> = </span>
+        <span class="eq">(P + P<sub style="font-size:.6em">poleas</sub>) / n</span>
+      </div>
+    </div>
+
+    <!-- PASO 2: Sustitución -->
+    <div class="step-card s2">
+      <div class="step-tag">
+        <span class="step-num">2</span>
+        Sustitución de valores actuales
+      </div>
+      <div class="step-formula" id="oc-step2">—</div>
+    </div>
+
+    <!-- PASO 3: Resultado -->
+    <div class="step-card s3">
+      <div class="step-tag">
+        <span class="step-num">3</span>
+        Resultado final
+      </div>
+      <div class="step-formula" id="oc-step3">—</div>
+    </div>
+
+    <div class="oc-div"></div>
+
+    <!-- Variables del sistema -->
+    <div class="oc-note">
+      <div class="oc-note-ttl">Variables del sistema</div>
+      <div class="oc-note-row">
+        <span class="oc-note-lbl">Peso de la carga (P)</span>
+        <span class="oc-note-val" id="oc-var-w">100 N</span>
+      </div>
+      <div class="oc-note-row">
+        <span class="oc-note-lbl">Poleas móviles (n_mov)</span>
+        <span class="oc-note-val" id="oc-var-nm">0</span>
+      </div>
+      <div class="oc-note-row">
+        <span class="oc-note-lbl">Peso poleas móviles (P_p)</span>
+        <span class="oc-note-val" id="oc-var-wp">0 N</span>
+      </div>
+      <div class="oc-note-row">
+        <span class="oc-note-lbl">Total poleas (n)</span>
+        <span class="oc-note-val" id="oc-var-n">1</span>
+      </div>
+      <div class="oc-note-row">
+        <span class="oc-note-lbl">Ventaja mecánica</span>
+        <span class="oc-note-val" id="oc-var-vm">×1</span>
+      </div>
+    </div>
+
+    <!-- Conservación de energía -->
+    <div class="conserv-box">
+      <div class="conserv-title">⚡ Conservación de la energía</div>
+      <div class="conserv-row">
+        <span class="conserv-icon">🔴</span>
+        <span class="conserv-text">
+          Si tenés <strong id="oc-n-inline">1</strong> polea, para subir la carga
+          <strong>1 m</strong> tenés que tirar la cuerda <strong id="oc-dist-inline">1 m</strong>.
+        </span>
+      </div>
+      <div class="conserv-row">
+        <span class="conserv-icon">⚖️</span>
+        <span class="conserv-text">
+          Lo que ganás en <strong>fuerza</strong> (F = P/n), lo perdés en
+          <strong>distancia</strong> (d_cuerda = n · d_carga).
+        </span>
+      </div>
+      <div class="conserv-row">
+        <span class="conserv-icon">📐</span>
+        <span class="conserv-text">
+          Trabajo = F × d siempre es igual en ambos lados:
+          <strong>W_entrada = W_salida</strong>.
+        </span>
+      </div>
+    </div>
+
+  </div><!-- /oc-body -->
+</div><!-- /oc-panel -->
+
+<script>
+'use strict';
+// ═══════════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════════
+let W=100, Wp=0, N=1;
+let showDyn=true, showTen=true, showWt=true;
+let lastF=null;
+let archMode='coaxial'; // 'coaxial' | 'cascade' | 'tandem'
+
+// Spring drag physics
+let dragPull=0, dragTarget=0, dragging=false;
+let dragY0=0, dragPull0=0, springV=0;
+const SK=260, SD=24, MAXPULL=230;
+
+// Pulley angle tracking
+let topAng=0, botAng=0;
+let pAng=[];
+let prevPull=0;
+
+// Canvas & DPR
+const cv=document.getElementById('cv');
+const ctx=cv.getContext('2d');
+const DPR=window.devicePixelRatio||1;
+let CW=0, CH=0;
+
+// Scene geometry
+let sc={};
+let OVQ=[];
+
+// ═══════════════════════════════════════════════════════════
+//  RESIZE
+// ═══════════════════════════════════════════════════════════
+function resize(){
+  const p=cv.parentElement;
+  CW=p.clientWidth; CH=p.clientHeight;
+  cv.width=Math.round(CW*DPR);
+  cv.height=Math.round(CH*DPR);
+  cv.style.width=CW+'px';
+  cv.style.height=CH+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  buildScene();
+}
+new ResizeObserver(resize).observe(document.getElementById('viz'));
+
+// ═══════════════════════════════════════════════════════════
+//  SCENE BUILDER
+//  N=1        → scSimple
+//  2–4        → scFew
+//  N≥5 coaxial  → scBlock (existing compact block)
+//  N≥5 cascade  → scCascade (stacked sub-systems)
+//  N≥5 tandem   → scTandem (horizontal beam distribution)
+// ═══════════════════════════════════════════════════════════
+function buildScene(){
+  if(pAng.length!==N) pAng=new Array(N).fill(0);
+  if(N===1)      { scSimple(); return; }
+  if(N<=4)       { scFew();    return; }
+  if(archMode==='cascade') { scCascade(); return; }
+  if(archMode==='tandem')  { scTandem();  return; }
+  scBlock(); // coaxial (default)
+}
+
+// ── SCENE: 1 pulley (simple fixed) ──
+function scSimple(){
+  const cx=CW*.5, pr=30, ceilY=CH*.14;
+  const wW=84, wH=50, loadRestY=CH*.68;
+  sc={
+    mode:'simple', pr, cx, ceilY,
+    pulleys:[{x:cx, y:ceilY+pr, r:pr, fixed:true}],
+    loadCX:cx, loadRestY, wW, wH,
+    ropeEndX:cx, ropeEndRestY:ceilY-14,
+    dynX:cx+64
+  };
+}
+
+// ── SCENE: 2-4 pulleys (individual side-by-side) ──
+function scFew(){
+  const nF=Math.ceil(N/2), nM=Math.floor(N/2);
+  const cx=CW*.5;
+  // Nice spacing for ≤4 pulleys — generous room
+  const pr=Math.max(20, Math.min(28, CW*.055));
+  const spc=pr*2.8;
+  const totalW=spc*(N-1);
+  const x0=cx-totalW/2;
+  const ceilY=CH*.12;
+  const wW=82, wH=48;
+  const ps=[];
+  for(let i=0;i<N;i++){
+    const x=x0+spc*i, fixed=(i%2===0);
+    const y=fixed ? ceilY+pr : CH*.34+pr+(i/N)*CH*.08;
+    ps.push({x,y,r:pr,fixed});
+  }
+  const ancX=ps[0].x;
+  const loadRestY=CH*.65+nM*pr*.3;
+  const lp=ps[N-1];
+  sc={
+    mode:'few', pr, cx, ceilY,
+    pulleys:ps, nF, nM,
+    loadCX:ancX, loadRestY, wW, wH,
+    ropeEndX:lp.x, ropeEndRestY:ceilY-14,
+    dynX:Math.min(lp.x+56, CW-42)
+  };
+}
+
+// ── SCENE: 5+ pulleys (compact block-and-tackle) ──
+function scBlock(){
+  const nM=Math.floor(N/2), nF=Math.ceil(N/2);
+  const cx=CW*.5;
+  // Each "block" is a box containing all fixed or all mobile pulleys side by side
+  // The number of rope strands between blocks = N (each pulley contributes 1 rope segment)
+  // We fit everything neatly in the canvas
+  const PR=Math.max(11, Math.min(20, CW*.032));  // pulley radius inside block
+  const PAD=8;  // padding inside block housing
+
+  // Top block: nF fixed pulleys
+  const topBlockW= nF*(PR*2)+( nF+1)*PAD;
+  const topBlockH= PR*2 + PAD*2;
+  const topBlockX= cx - topBlockW/2;
+  const topBlockY= CH*.1;
+
+  // Bottom block: nM mobile pulleys (if nM=0 → no mobile block, load hangs direct)
+  const botBlockW= Math.max(nM,1)*(PR*2)+(Math.max(nM,1)+1)*PAD;
+  const botBlockH= PR*2 + PAD*2;
+  const botBlockX= cx - botBlockW/2;
+
+  // Vertical gap between blocks: where ropes travel
+  // We need room to see the ropes; load hangs below bottom block
+  const availH=CH*.78 - (topBlockY+topBlockH);
+  const blockGap=availH*.45;
+  const botBlockY=topBlockY+topBlockH+blockGap;
+
+  // Load block
+  const wW=82, wH=50;
+  const loadRestY=botBlockY+botBlockH+40; // top of load at rest
+
+  // Free end of rope: right side of top block, going up
+  const ropeEndX=topBlockX+topBlockW+14;
+  const ropeEndRestY=topBlockY-14;
+
+  // Pulley positions inside top block
+  const topPulleys=[];
+  for(let i=0;i<nF;i++){
+    const px=topBlockX+PAD+(PR*2+PAD)*i+PR;
+    const py=topBlockY+PAD+PR;
+    topPulleys.push({x:px, y:py, r:PR});
+  }
+  // Pulley positions inside bottom block
+  const botPulleys=[];
+  for(let i=0;i<nM;i++){
+    const px=botBlockX+PAD+(PR*2+PAD)*i+PR;
+    const py=botBlockY+PAD+PR;
+    botPulleys.push({x:px, y:py, r:PR});
+  }
+
+  // Rope strands: N strands run between the two blocks.
+  // They are evenly spaced across the width of the narrower block.
+  // Each strand x position is calculated to be spread inside the block area.
+  const strandCount=N;
+  const strandAreaX=Math.min(topBlockX, botBlockX)+PAD+PR;
+  const strandAreaW=Math.max(topBlockW, botBlockW)-PAD*2-PR*2;
+  const strands=[];
+  for(let i=0;i<strandCount;i++){
+    const t=strandCount>1 ? i/(strandCount-1) : 0.5;
+    strands.push(strandAreaX + t*strandAreaW);
+  }
+
+  // The last strand (index N-1) is the free rope end user pulls
+  const lastStrandX=strands[N-1];
+
+  sc={
+    mode:'block', PR, cx, nF, nM,
+    topBlockX, topBlockY, topBlockW, topBlockH,
+    botBlockX, botBlockY, botBlockW, botBlockH,
+    topPulleys, botPulleys,
+    strands,
+    loadCX:cx, loadRestY, wW, wH,
+    ropeEndX:ropeEndX,
+    ropeEndRestY:ropeEndRestY,
+    dynX:Math.min(ropeEndX+34, CW-40),
+    blockGap
+  };
+}
+
+// ── SCENE: Cascade / compound (stacked sub-systems) ──
+// Visual: 2–3 sub-blocks stacked, each fed by the previous block's rope
+function scCascade(){
+  const nM=Math.floor(N/2), nF=Math.ceil(N/2);
+  const cx=CW*.5;
+  // Divide into 2 stages: each stage is a mini block-and-tackle
+  const stages=Math.min(3, Math.max(2, Math.ceil(N/4)));
+  const nPerStage=Math.ceil(N/stages);
+  const PR=Math.max(10,Math.min(18,CW*.028));
+  const PAD=7;
+  const bH=PR*2+PAD*2;
+  const bW=Math.max(nPerStage,2)*(PR*2)+(Math.max(nPerStage,2)+1)*PAD;
+  const totalH=CH*.78;
+  const startY=CH*.09;
+  const gapH=(totalH-stages*bH*2)/(stages+1);
+  const wW=80, wH=48;
+
+  // Build stage data: each stage has a top (fixed) block and a bottom (mobile) block
+  const stageData=[];
+  let nLeft=N;
+  for(let s=0;s<stages;s++){
+    const nStage=Math.min(nPerStage, nLeft); nLeft-=nStage;
+    const nF_s=Math.ceil(nStage/2), nM_s=Math.floor(nStage/2);
+    const topY=startY+s*(bH*2+gapH)+gapH*.2;
+    const botY=topY+bH+Math.max(40,gapH*.5);
+    // horizontal offset: cascade each stage slightly
+    const offX=cx + (s-(stages-1)/2)*bW*.3;
+    stageData.push({nF:nF_s,nM:nM_s,n:nStage,topY,botY,cx:offX,bW,bH,PR,PAD});
+  }
+  const lastStage=stageData[stages-1];
+  const loadRestY=lastStage.botY+bH+38;
+  const ropeEndX=stageData[0].cx-bW/2-18;
+  const ropeEndRestY=stageData[0].topY-12;
+  sc={
+    mode:'cascade', cx, stageData, stages, PR, PAD, bW, bH,
+    loadCX:lastStage.cx, loadRestY, wW, wH,
+    ropeEndX, ropeEndRestY,
+    dynX:Math.min(ropeEndX-36, 50),
+    nF, nM
+  };
+}
+
+// ── SCENE: Tandem / horizontal beam ──
+// Visual: fixed pulleys distributed along a wide horizontal beam,
+//         load hangs from a central lower block
+function scTandem(){
+  const nM=Math.floor(N/2), nF=Math.ceil(N/2);
+  const cx=CW*.5;
+  // Groups of fixed pulleys along a horizontal beam
+  const groups=Math.min(4, Math.max(2, Math.ceil(nF/3)));
+  const nPerGroup=Math.ceil(nF/groups);
+  const PR=Math.max(12,Math.min(20,CW*.03));
+  const PAD=8;
+  const bH=PR*2+PAD*2;
+  // Beam spans most of the canvas width
+  const beamX=CW*.06, beamW=CW*.88;
+  const beamY=CH*.13;
+  const groupSpacing=beamW/(groups+1);
+  const wW=82,wH=48;
+  // Central mobile block below beam
+  const mobBW=Math.max(nM,1)*(PR*2)+(Math.max(nM,1)+1)*PAD;
+  const mobBH=bH;
+  const mobY=beamY+bH+CH*.28;
+  const loadRestY=mobY+mobBH+38;
+  // groups of fixed pulleys along the beam
+  const fixGroups=[];
+  let nLeft=nF;
+  for(let g=0;g<groups;g++){
+    const n=Math.min(nPerGroup,nLeft); nLeft-=n;
+    if(n<=0) break;
+    const gx=beamX+groupSpacing*(g+1);
+    const bW=n*(PR*2)+(n+1)*PAD;
+    fixGroups.push({n,cx:gx,bW,topY:beamY,bH,PR,PAD,pX:[]});
+    const last=fixGroups[fixGroups.length-1];
+    for(let i=0;i<n;i++) last.pX.push(gx-bW/2+PAD+(PR*2+PAD)*i+PR);
+  }
+  // rope end: rightmost group, above
+  const lastG=fixGroups[fixGroups.length-1];
+  const ropeEndX=Math.min(lastG.cx+lastG.bW/2+18, CW-30);
+  const ropeEndRestY=beamY-12;
+  sc={
+    mode:'tandem', cx, beamX, beamW, beamY, bH,
+    fixGroups, groups,
+    mobCX:cx, mobBW, mobBH, mobY,
+    PR, PAD,
+    loadCX:cx, loadRestY, wW, wH,
+    ropeEndX, ropeEndRestY,
+    dynX:Math.min(ropeEndX+34, CW-36),
+    nF, nM
+  };
+}
+
+// ═══════════════════════════════════════════════════════════
+//  MAIN DRAW
+// ═══════════════════════════════════════════════════════════
+function draw(){
+  ctx.clearRect(0,0,CW,CH);
+  ctx.fillStyle='#FAFAF9';
+  ctx.fillRect(0,0,CW,CH);
+
+  const pull=Math.max(0,dragPull);
+  const lift= N>0 ? pull/N : 0;
+
+  if(sc.mode==='simple')       drawSimple(pull,lift);
+  else if(sc.mode==='few')     drawFew(pull,lift);
+  else if(sc.mode==='cascade') drawCascade(pull,lift);
+  else if(sc.mode==='tandem')  drawTandem(pull,lift);
+  else                         drawBlock(pull,lift);
+
+  flushOV(pull,lift);
+  posHandle(pull);
+}
+
+// ── DRAW: simple (1 pulley) ──
+function drawSimple(pull,lift){
+  const{cx,pr,ceilY,pulleys,loadCX,loadRestY,wW,wH,dynX}=sc;
+  const p=pulleys[0];
+  const loadTop=loadRestY-lift;
+  const handleY=sc.ropeEndRestY+pull;
+
+  drawCeil(cx-56,ceilY-14,112);
+
+  // rope right side (user pulls → goes up to pulley)
+  rope(cx,handleY, cx,p.y-pr);
+  // rope left side (goes from pulley down to load top-center)
+  rope(cx,p.y+pr, cx,loadTop);
+
+  drawPulley(p.x,p.y,pr,true,pAng[0]);
+  drawBlock2(loadCX-wW/2,loadTop,wW,wH,W+'N');
+
+  if(showWt)  vecArrow(cx+wW*.28,loadTop+wH, cx+wW*.28,loadTop+wH+56,'#C0392B');
+  if(showTen) vecArrow(cx-wW*.28,loadTop,    cx-wW*.28,loadTop-48,'#E74C3C');
+  if(showDyn) drawDyn(dynX,ceilY-14,calcF(),W*1.6);
+}
+
+// ── DRAW: few pulleys (2-4) ──
+function drawFew(pull,lift){
+  const{ceilY,pulleys,loadCX,loadRestY,wW,wH,dynX,cx}=sc;
+  const loadTop=loadRestY-lift;
+  const lp=pulleys[N-1];
+  const handleY=sc.ropeEndRestY+pull;
+
+  // ceiling bar spanning all fixed pulleys
+  const fxs=pulleys.filter(p=>p.fixed).map(p=>p.x);
+  const ceilL=Math.min(...fxs)-sc.pr-16;
+  const ceilR=Math.max(...fxs)+sc.pr+16;
+  drawCeil(ceilL,ceilY-14,ceilR-ceilL);
+
+  // rope segments:
+  // free end → last pulley top
+  rope(lp.x,handleY, lp.x,lp.y-lp.r);
+
+  // between consecutive pulleys (bottom to bottom)
+  for(let i=N-1;i>0;i--){
+    const a=pulleys[i], b=pulleys[i-1];
+    rope(a.x,a.y+a.r*0.9, b.x,b.y+b.r*0.9);
+  }
+
+  // first pulley: one side up to ceiling, other side down to load
+  const fp=pulleys[0];
+  rope(fp.x,fp.y-fp.r, fp.x,ceilY);
+  rope(fp.x,fp.y+fp.r, loadCX,loadTop);
+
+  // every even-indexed fixed pulley (except 0): rope goes up to ceiling
+  for(let i=2;i<N;i+=2){
+    const p=pulleys[i];
+    rope(p.x,p.y-p.r, p.x,ceilY);
+  }
+
+  // draw pulleys on top
+  for(let i=0;i<N;i++){
+    const p=pulleys[i];
+    drawPulley(p.x,p.y,p.r,p.fixed,pAng[i]);
+  }
+
+  drawBlock2(loadCX-wW/2,loadTop,wW,wH,W+'N');
+
+  if(showWt)  vecArrow(loadCX+wW*.3,loadTop+wH, loadCX+wW*.3,loadTop+wH+52,'#C0392B');
+  if(showTen){
+    const F=calcF();
+    const cnt=Math.min(N,3);
+    for(let i=0;i<cnt;i++){
+      const p=pulleys[i];
+      vecArrow(p.x+p.r+6,p.y-p.r*.3, p.x+p.r+6,p.y-p.r*.3-38,'#E74C3C');
+      OVQ.push({id:'T'+i, x:p.x+p.r+28, y:p.y-p.r*.3-20, text:'T='+F.toFixed(0)+'N', cls:'ol ltn'});
+    }
+  }
+  if(showDyn) drawDyn(dynX,ceilY-14,calcF(),W*1.6);
+}
+
+// ── DRAW: compact block-and-tackle (5+ pulleys) ──
+function drawBlock(pull,lift){
+  const{
+    topBlockX,topBlockY,topBlockW,topBlockH,
+    botBlockX,botBlockY,botBlockW,botBlockH,
+    topPulleys,botPulleys,strands,
+    loadCX,loadRestY,wW,wH,dynX,
+    cx,nF,nM,PR
+  }=sc;
+
+  const loadTop=loadRestY-lift;
+  const handleY=sc.ropeEndRestY+pull;
+
+  // ── Rope strands between blocks ──
+  // The bottom block shifts up by `lift`
+  const botY_shifted=botBlockY-lift;
+
+  // Each strand i goes from topBlock bottom to botBlock top
+  // (or if no bottom block, straight down to load)
+  for(let i=0;i<N;i++){
+    const sx=strands[i];
+    const topY=topBlockY+topBlockH; // bottom edge of top housing
+    const botY=nM>0 ? botY_shifted : loadTop; // top of bot housing or load
+    // draw the vertical rope strand
+    rope(sx, topY, sx, botY);
+  }
+
+  // Free end rope: from handle down to top-right of housing
+  rope(sc.ropeEndX, handleY, sc.ropeEndX, topBlockY);
+
+  // Load hangs from center of bottom block
+  if(nM>0){
+    rope(cx, botY_shifted+botBlockH, cx, loadTop);
+  }
+
+  // ── Top housing block ──
+  drawHousing(topBlockX, topBlockY, topBlockW, topBlockH, true);
+  // pulleys inside top block
+  for(let i=0;i<nF;i++){
+    const p=topPulleys[i];
+    drawPulley(p.x, p.y, PR, false, topAng);
+  }
+
+  // ── Bottom housing block (mobile) — shifts up with lift ──
+  if(nM>0){
+    drawHousing(botBlockX, botY_shifted, botBlockW, botBlockH, false);
+    for(let i=0;i<nM;i++){
+      const p=botPulleys[i];
+      drawPulley(p.x, p.y-lift, PR, false, botAng);
+    }
+  }
+
+  // ── Load block ──
+  drawBlock2(loadCX-wW/2, loadTop, wW, wH, W+'N');
+
+  // Hook connecting bottom housing to load
+  if(nM>0){
+    const hx=cx, hy0=botY_shifted+botBlockH, hy1=loadTop;
+    ctx.save();
+    ctx.strokeStyle='#6A5848'; ctx.lineWidth=2; ctx.lineCap='round';
+    ctx.setLineDash([3,2]);
+    ctx.beginPath(); ctx.moveTo(hx,hy0); ctx.lineTo(hx,hy1); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+
+  if(showWt)  vecArrow(cx+wW*.28,loadTop+wH, cx+wW*.28,loadTop+wH+56,'#C0392B');
+  if(showTen){
+    const F=calcF();
+    // Show tension on 2 outer strands
+    const si=[0, N>2?Math.floor(N/2):1];
+    for(const i of si){
+      const sx=strands[i];
+      const midY=topBlockY+topBlockH + (botY_shifted-(topBlockY+topBlockH))*.5;
+      vecArrow(sx+12,midY+16, sx+12,midY-16,'#E74C3C');
+      OVQ.push({id:'Ts'+i, x:sx+34, y:midY, text:'T='+F.toFixed(0)+'N', cls:'ol ltn'});
+    }
+  }
+  if(showDyn) drawDyn(dynX, topBlockY-14, calcF(), W*1.6);
+}
+
+// ── Housing box (block frame) ──
+function drawHousing(x,y,w,h,isTop,label){
+  ctx.save();
+  ctx.shadowColor='rgba(0,0,0,.12)'; ctx.shadowBlur=8; ctx.shadowOffsetY=3;
+  const g=ctx.createLinearGradient(x,y,x,y+h);
+  g.addColorStop(0, isTop?'#EEE5D8':'#E4DDD2');
+  g.addColorStop(1, isTop?'#D8CCBA':'#CEC5B4');
+  rrect(ctx,x,y,w,h,6); ctx.fillStyle=g; ctx.fill();
+  ctx.shadowColor='transparent';
+  ctx.strokeStyle='#B0A090'; ctx.lineWidth=1.2;
+  rrect(ctx,x,y,w,h,6); ctx.stroke();
+  ctx.strokeStyle='rgba(255,255,255,.55)'; ctx.lineWidth=.8;
+  rrect(ctx,x+1.5,y+1.5,w-3,h-3,5); ctx.stroke();
+  const tag=label||(isTop?'BLOQUE FIJO':'BLOQUE MÓVIL');
+  const tagColor=isTop?'#8A7A6A':'#7A6A58';
+  ctx.font='bold 7.5px DM Sans,sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillStyle=tagColor;
+  ctx.fillText(tag, x+w/2, isTop? y+h+8 : y-8);
+  if(isTop){
+    ctx.fillStyle='#9A8A78';
+    ctx.fillRect(x+w*.3,y-8,w*.4,8);
+    ctx.strokeStyle='#7A6A5A'; ctx.lineWidth=1;
+    ctx.strokeRect(x+w*.3,y-8,w*.4,8);
+  }
+  ctx.restore();
+}
+
+// ── DRAW: Cascade / compound (stacked sub-systems) ──
+function drawCascade(pull,lift){
+  const{stageData,stages,loadCX,loadRestY,wW,wH,dynX,cx}=sc;
+  const F=calcF();
+  const loadTop=loadRestY-lift;
+  const handleY=sc.ropeEndRestY+pull;
+
+  // Overall lift is shared across stages proportionally
+  const liftPerStage=lift/stages;
+
+  // ── ceiling bar (spans stage 0 top block) ──
+  const s0=stageData[0];
+  drawCeil(s0.cx-s0.bW/2-14, s0.topY-14, s0.bW+28);
+
+  // ── Draw each stage ──
+  for(let s=0;s<stages;s++){
+    const sd=stageData[s];
+    const stageLift=liftPerStage*(stages-s); // deeper stages lift less
+    const PR=sd.PR, PAD=sd.PAD;
+    const topY=sd.topY;
+    const botY=sd.botY-stageLift;
+
+    // top housing (fixed for this stage)
+    drawHousing(sd.cx-sd.bW/2, topY, sd.bW, sd.bH, true, 'FIJO S'+(s+1));
+    // pulleys in top block
+    for(let i=0;i<sd.nF;i++){
+      const px=sd.cx-sd.bW/2+PAD+(PR*2+PAD)*i+PR;
+      const py=topY+PAD+PR;
+      drawPulley(px,py,PR,false,topAng*(s%2===0?1:-1));
+    }
+
+    if(sd.nM>0){
+      // bottom housing (mobile for this stage)
+      drawHousing(sd.cx-sd.bW/2, botY, sd.bW, sd.bH, false, 'MÓVIL S'+(s+1));
+      for(let i=0;i<sd.nM;i++){
+        const px=sd.cx-sd.bW/2+PAD+(PR*2+PAD)*i+PR;
+        const py=botY+PAD+PR;
+        drawPulley(px,py,PR,false,botAng*(s%2===0?1:-1));
+      }
+
+      // rope strands between top and bottom of THIS stage
+      const strandN=sd.n;
+      const sx0=sd.cx-sd.bW/2+PAD+PR;
+      const sxW=sd.bW-PAD*2-PR*2;
+      for(let i=0;i<strandN;i++){
+        const t=strandN>1?i/(strandN-1):.5;
+        const sx=sx0+t*sxW;
+        rope(sx, topY+sd.bH, sx, botY);
+      }
+
+      // connector rope from this stage's mobile block to next stage's fixed block (or load)
+      const connX=sd.cx;
+      if(s<stages-1){
+        const next=stageData[s+1];
+        const nextTop=next.topY;
+        rope(connX, botY+sd.bH, next.cx, nextTop);
+        // small connector pulley hint
+        ctx.save(); ctx.strokeStyle='#9B8A72'; ctx.lineWidth=1; ctx.setLineDash([3,2]);
+        ctx.beginPath(); ctx.moveTo(connX,botY+sd.bH); ctx.lineTo(next.cx,nextTop); ctx.stroke();
+        ctx.setLineDash([]); ctx.restore();
+      } else {
+        // last stage: rope goes down to load
+        rope(connX, botY+sd.bH, loadCX, loadTop);
+        // dashed rod
+        ctx.save(); ctx.strokeStyle='#6A5848'; ctx.lineWidth=2; ctx.lineCap='round';
+        ctx.setLineDash([3,2]);
+        ctx.beginPath(); ctx.moveTo(loadCX,loadTop); ctx.lineTo(connX,botY+sd.bH); ctx.stroke();
+        ctx.setLineDash([]); ctx.restore();
+      }
+    } else {
+      // N=1 in stage: single rope
+      rope(sd.cx, topY+sd.bH, loadCX, loadTop);
+    }
+  }
+
+  // Free rope end from top of stage-0 fixed block
+  rope(sc.ropeEndX, handleY, sc.ropeEndX, s0.topY);
+
+  // Load
+  drawBlock2(loadCX-wW/2, loadTop, wW, wH, W+'N');
+
+  if(showWt)  vecArrow(loadCX+wW*.3,loadTop+wH, loadCX+wW*.3,loadTop+wH+50,'#C0392B');
+  if(showTen){
+    // tension label on first stage strands
+    const sd=stageData[0];
+    const stageLift=liftPerStage*(stages);
+    const midY=sd.topY+sd.bH+(sd.botY-stageLift-sd.topY-sd.bH)*.5;
+    vecArrow(sd.cx+sd.bW/2+8,midY+14,sd.cx+sd.bW/2+8,midY-14,'#E74C3C');
+    OVQ.push({id:'Tc0',x:sd.cx+sd.bW/2+32,y:midY,text:'T='+F.toFixed(0)+'N',cls:'ol ltn'});
+  }
+  if(showDyn) drawDyn(dynX, s0.topY-14, F, W*1.6);
+}
+
+// ── DRAW: Tandem / horizontal beam distribution ──
+function drawTandem(pull,lift){
+  const{beamX,beamW,beamY,bH,fixGroups,groups,
+        mobCX,mobBW,mobBH,mobY,PR,PAD,
+        loadCX,loadRestY,wW,wH,dynX,nM}=sc;
+  const F=calcF();
+  const loadTop=loadRestY-lift;
+  const handleY=sc.ropeEndRestY+pull;
+  const mobYshifted=mobY-lift;
+
+  // ── Wide horizontal beam ──
+  ctx.save();
+  // Main I-beam body
+  const beamH=16;
+  const bg=ctx.createLinearGradient(beamX,beamY,beamX,beamY+beamH);
+  bg.addColorStop(0,'#8A7A6A'); bg.addColorStop(.3,'#A89A8A'); bg.addColorStop(1,'#786858');
+  rrect(ctx,beamX,beamY,beamW,beamH,2); ctx.fillStyle=bg; ctx.fill();
+  // flange top
+  ctx.fillStyle='#6A5A4A'; ctx.fillRect(beamX-4,beamY-4,beamW+8,5);
+  ctx.fillStyle='#9A8A7A'; ctx.fillRect(beamX-4,beamY+beamH,beamW+8,5);
+  // rivets along beam
+  for(let i=0;i<Math.min(12,Math.floor(beamW/55));i++){
+    const rx=beamX+30+i*(beamW-60)/Math.max(1,Math.floor(beamW/55)-1);
+    ctx.beginPath(); ctx.arc(rx,beamY+beamH/2,2.5,0,Math.PI*2);
+    ctx.fillStyle='#5A4A38'; ctx.fill();
+  }
+  ctx.restore();
+
+  // ── Fixed pulley groups along beam ──
+  for(let g=0;g<fixGroups.length;g++){
+    const grp=fixGroups[g];
+    // group housing
+    drawHousing(grp.cx-grp.bW/2, beamY+beamH+4, grp.bW, grp.bH, true, 'GRP '+(g+1));
+    // pulleys inside group
+    for(let i=0;i<grp.n;i++){
+      drawPulley(grp.pX[i], beamY+beamH+4+PAD+PR, PR, false, topAng*(g%2===0?1:-1));
+    }
+  }
+
+  // ── Mobile block (central, moves up with lift) ──
+  if(nM>0){
+    drawHousing(mobCX-mobBW/2, mobYshifted, mobBW, mobBH, false, 'BLOQUE MÓVIL');
+    for(let i=0;i<nM;i++){
+      const px=mobCX-mobBW/2+PAD+(PR*2+PAD)*i+PR;
+      drawPulley(px, mobYshifted+PAD+PR, PR, false, botAng);
+    }
+  }
+
+  // ── Rope routing: from each fixed group down to mobile block, and horizontal along beam ──
+  // The rope zigzags: fixed group → mobile → next fixed group → mobile → ...
+  // Simplified: vertical strands from each group down to mobile block top, spread evenly
+  const mobTop=nM>0?mobYshifted:(loadTop);
+  const mL=mobCX-(nM>0?mobBW/2:wW/2);
+  const mR=mobCX+(nM>0?mobBW/2:wW/2);
+
+  for(let g=0;g<fixGroups.length;g++){
+    const grp=fixGroups[g];
+    const grpBotY=beamY+beamH+4+grp.bH;
+    const destX=mL+(mR-mL)*(fixGroups.length>1?g/(fixGroups.length-1):.5);
+    // vertical drop rope from group to mobile
+    for(let i=0;i<grp.n;i++){
+      const t=grp.n>1?i/(grp.n-1):.5;
+      const sx=grp.pX[i];
+      const dx=mL+(mR-mL)*((g*(grp.n>0?grp.n:1)+i)/(Math.max(N,1)));
+      rope(sx, grpBotY, Math.min(mR,Math.max(mL,dx)), mobTop);
+    }
+    // horizontal rope segments connecting groups along beam (visual rope trail)
+    if(g<fixGroups.length-1){
+      const next=fixGroups[g+1];
+      ctx.save(); ctx.strokeStyle='#7C6040'; ctx.lineWidth=1.5; ctx.globalAlpha=.5; ctx.lineCap='round';
+      ctx.setLineDash([4,3]);
+      ctx.beginPath(); ctx.moveTo(grp.cx+grp.bW/2, beamY+beamH+4+bH/2);
+      ctx.lineTo(next.cx-next.bW/2, beamY+beamH+4+bH/2); ctx.stroke();
+      ctx.setLineDash([]); ctx.restore();
+    }
+  }
+
+  // Mobile block to load
+  if(nM>0){
+    rope(mobCX, mobYshifted+mobBH, loadCX, loadTop);
+    ctx.save(); ctx.strokeStyle='#6A5848'; ctx.lineWidth=2; ctx.lineCap='round';
+    ctx.setLineDash([3,2]);
+    ctx.beginPath(); ctx.moveTo(loadCX,loadTop); ctx.lineTo(mobCX,mobYshifted+mobBH); ctx.stroke();
+    ctx.setLineDash([]); ctx.restore();
+  } else {
+    // no mobile block: last group drops directly to load
+    if(fixGroups.length>0){
+      const lastG=fixGroups[fixGroups.length-1];
+      rope(lastG.cx, beamY+beamH+4+lastG.bH, loadCX, loadTop);
+    }
+  }
+
+  // Free end rope (dashed, going from last group up-right)
+  rope(sc.ropeEndX, handleY, sc.ropeEndX, beamY+beamH+4, true);
+
+  // Load
+  drawBlock2(loadCX-wW/2, loadTop, wW, wH, W+'N');
+
+  if(showWt)  vecArrow(loadCX+wW*.3,loadTop+wH, loadCX+wW*.3,loadTop+wH+50,'#C0392B');
+  if(showTen && fixGroups.length>0){
+    const grp=fixGroups[0];
+    const midY=(beamY+beamH+4+grp.bH + mobTop)*.5;
+    vecArrow(grp.pX[0]+14,midY+14,grp.pX[0]+14,midY-14,'#E74C3C');
+    OVQ.push({id:'Tt0',x:grp.pX[0]+38,y:midY,text:'T='+F.toFixed(0)+'N',cls:'ol ltn'});
+  }
+  if(showDyn) drawDyn(dynX, beamY-14, F, W*1.6);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  DRAWING PRIMITIVES (all use logical px, DPR handled by transform)
+// ═══════════════════════════════════════════════════════════
+function drawCeil(x,y,w){
+  ctx.save();
+  const g=ctx.createLinearGradient(x,y,x,y+12);
+  g.addColorStop(0,'#8A7A6A'); g.addColorStop(1,'#C4B49A');
+  rrect(ctx,x,y,w,12,3); ctx.fillStyle=g; ctx.fill();
+  ctx.fillStyle='rgba(0,0,0,.07)'; ctx.fillRect(x,y+12,w,4);
+  ctx.restore();
+}
+
+function rope(x1,y1,x2,y2,dashed=false){
+  if(Math.hypot(x2-x1,y2-y1)<1) return;
+  ctx.save();
+  ctx.strokeStyle='#7C6040'; ctx.lineWidth=2; ctx.lineCap='round'; ctx.lineJoin='round';
+  ctx.setLineDash(dashed?[5,4]:[]);
+  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  if(!dashed){
+    ctx.globalAlpha=.13; ctx.strokeStyle='#FFF4E0'; ctx.lineWidth=.85;
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawPulley(x,y,r,fixed,angle){
+  ctx.save();
+  if(fixed){
+    ctx.fillStyle='#AEA090'; ctx.strokeStyle='#8A7A6A'; ctx.lineWidth=1.1;
+    ctx.beginPath(); ctx.arc(x,y-r*.54,r*.47,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#968678'; ctx.fillRect(x-r*.54,y-r*.84,r*1.08,r*.34);
+  }
+  // outer rim gradient
+  const g=ctx.createRadialGradient(x-r*.2,y-r*.2,r*.06, x,y,r);
+  g.addColorStop(0,'#F2EAD8'); g.addColorStop(.62,'#DACDB5'); g.addColorStop(1,'#B8A898');
+  ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fillStyle=g; ctx.fill();
+  ctx.strokeStyle='#9B8A72'; ctx.lineWidth=1.3; ctx.stroke();
+  // groove channel
+  ctx.beginPath(); ctx.arc(x,y,r*.78,0,Math.PI*2);
+  ctx.strokeStyle='rgba(80,60,40,.2)'; ctx.lineWidth=r*.15; ctx.stroke();
+  // rotating spokes
+  ctx.save(); ctx.translate(x,y); ctx.rotate(angle);
+  for(let i=0;i<4;i++){
+    ctx.save(); ctx.rotate(i*Math.PI/2);
+    ctx.strokeStyle='rgba(100,78,55,.28)'; ctx.lineWidth=Math.max(.7,r*.055);
+    ctx.beginPath(); ctx.moveTo(0,r*.2); ctx.lineTo(0,r*.66); ctx.stroke();
+    ctx.restore();
+  }
+  ctx.restore();
+  // hub
+  const hg=ctx.createRadialGradient(x-r*.1,y-r*.1,0, x,y,r*.35);
+  hg.addColorStop(0,'#DECCB8'); hg.addColorStop(1,'#A89878');
+  ctx.beginPath(); ctx.arc(x,y,r*.35,0,Math.PI*2); ctx.fillStyle=hg; ctx.fill();
+  ctx.strokeStyle='#9B8A72'; ctx.lineWidth=.7; ctx.stroke();
+  ctx.beginPath(); ctx.arc(x,y,r*.12,0,Math.PI*2); ctx.fillStyle='#786858'; ctx.fill();
+  ctx.restore();
+}
+
+// drawBlock is reserved for the compact block mode above, use drawBlock2 for the weight
+function drawBlock2(x,y,w,h,label){
+  ctx.save();
+  ctx.shadowColor='rgba(0,0,0,.18)'; ctx.shadowBlur=10; ctx.shadowOffsetY=3;
+  const g=ctx.createLinearGradient(x,y,x+w,y+h);
+  g.addColorStop(0,'#3A4A5C'); g.addColorStop(.42,'#2C3E50'); g.addColorStop(1,'#1E2D3D');
+  rrect(ctx,x,y,w,h,7); ctx.fillStyle=g; ctx.fill();
+  ctx.shadowColor='transparent';
+  // inner shine
+  ctx.fillStyle='rgba(255,255,255,.08)';
+  ctx.beginPath(); ctx.moveTo(x+7,y+2); ctx.lineTo(x+w-7,y+2);
+  ctx.lineTo(x+w-7,y+h*.34); ctx.lineTo(x+7,y+h*.34); ctx.closePath(); ctx.fill();
+  // hook top
+  ctx.strokeStyle='#6A5848'; ctx.lineWidth=2; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(x+w/2,y); ctx.lineTo(x+w/2,y-9); ctx.stroke();
+  ctx.strokeStyle='#7A6858'; ctx.lineWidth=1.7;
+  ctx.beginPath(); ctx.arc(x+w/2,y-14,5,Math.PI*.1,Math.PI*.9,false); ctx.stroke();
+  ctx.restore();
+  // HTML label for crystal text
+  OVQ.push({id:'blk', x:x+w/2, y:y+h/2, text:label, cls:'ol lwt'});
+}
+
+function vecArrow(x1,y1,x2,y2,color){
+  const len=Math.hypot(x2-x1,y2-y1); if(len<6) return;
+  ctx.save();
+  const ang=Math.atan2(y2-y1,x2-x1);
+  ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=2; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  ctx.save(); ctx.translate(x2,y2); ctx.rotate(ang);
+  ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-11,-5); ctx.lineTo(-7,0); ctx.lineTo(-11,5);
+  ctx.closePath(); ctx.fill();
+  ctx.restore(); ctx.restore();
+}
+
+function drawDyn(x,y,F,maxF){
+  const h=112,w=26,rx=5;
+  ctx.save();
+  ctx.shadowColor='rgba(0,0,0,.1)'; ctx.shadowBlur=5; ctx.shadowOffsetY=2;
+  rrect(ctx,x-w/2,y,w,h,rx); ctx.fillStyle='#F4EFE6'; ctx.fill();
+  ctx.shadowColor='transparent';
+  ctx.strokeStyle='#C8BCAC'; ctx.lineWidth=.9;
+  rrect(ctx,x-w/2,y,w,h,rx); ctx.stroke();
+  rrect(ctx,x-w/2+2,y+2,w-4,h-4,rx-1); ctx.fillStyle='#EDE5D5'; ctx.fill();
+  const ratio=Math.min(F/Math.max(maxF,1),1);
+  const fH=(h-14)*ratio;
+  if(fH>0){
+    const fg=ctx.createLinearGradient(0,y+h-7,0,y+h-7-fH);
+    fg.addColorStop(0,'#E74C3C'); fg.addColorStop(.5,'#C0392B'); fg.addColorStop(1,'#962019');
+    rrect(ctx,x-w/2+3,y+h-7-fH,w-6,fH,2); ctx.fillStyle=fg; ctx.fill();
+  }
+  for(let i=0;i<=10;i++){
+    const ty=y+h-7-(h-14)*i/10;
+    ctx.strokeStyle=i%5===0?'#8A7A6A':'#C4B8AC'; ctx.lineWidth=i%5===0?.85:.4;
+    ctx.beginPath(); ctx.moveTo(x-w/2+3,ty); ctx.lineTo(i%5===0?x+w/2-3:x,ty); ctx.stroke();
+  }
+  rrect(ctx,x-w/2,y,w,h,rx); ctx.strokeStyle='#C8BCAC'; ctx.lineWidth=.8; ctx.stroke();
+  ctx.restore();
+  OVQ.push({id:'dyn', x, y:y+h+11, text:F.toFixed(1)+' N', cls:'ol ldn'});
+}
+
+function rrect(ctx,x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r); ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  ctx.lineTo(x+r,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+  ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y);
+  ctx.closePath();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  HTML OVERLAY — crystal-clear text via DOM elements
+// ═══════════════════════════════════════════════════════════
+function flushOV(pull,lift){
+  const ov=document.getElementById('ov');
+  const ex={};
+  ov.querySelectorAll('[data-oid]').forEach(e=>ex[e.dataset.oid]=e);
+  const seen=new Set();
+
+  // Weight vector label (from simple/few modes - also need it for block mode)
+  if(showWt){
+    const wLabelX=sc.loadCX+sc.wW*.28+36;
+    const wLabelY=(sc.loadRestY-lift)+sc.wH+28;
+    OVQ.push({id:'wlbl', x:wLabelX, y:wLabelY, text:W+'N', cls:'ol ltn'});
+  }
+
+  // Tension labels for simple mode
+  if(showTen && sc.mode==='simple'){
+    const F=calcF();
+    const lt=sc.loadRestY-lift;
+    OVQ.push({id:'T0', x:sc.loadCX-sc.wW*.28+36, y:lt-26, text:'T='+F.toFixed(1)+'N', cls:'ol ltn'});
+  }
+
+  // Distance rulers (only while pulled)
+  if(pull>4){
+    const rx=sc.dynX+20;
+    const ry0=sc.ropeEndRestY;
+    OVQ.push({id:'rline', raw:true,
+      css:`position:absolute;left:${rx}px;top:${ry0}px;width:1px;height:${pull}px;pointer-events:none;` +
+          `background:repeating-linear-gradient(to bottom,rgba(192,57,43,.5) 0,rgba(192,57,43,.5) 3px,transparent 3px,transparent 6px)`
+    });
+    OVQ.push({id:'rlbl', raw:true,
+      css:`position:absolute;left:${rx+5}px;top:${ry0+pull/2}px;transform:translateY(-50%);pointer-events:none`,
+      text:(pull/100).toFixed(2)+' m',
+      cls:'ldr'
+    });
+    if(lift>4){
+      const lx=sc.loadCX-sc.wW/2-16;
+      const lTop=sc.loadRestY-lift;
+      OVQ.push({id:'lline', raw:true,
+        css:`position:absolute;left:${lx}px;top:${lTop}px;width:1px;height:${lift}px;pointer-events:none;` +
+            `background:repeating-linear-gradient(to bottom,rgba(44,62,80,.5) 0,rgba(44,62,80,.5) 3px,transparent 3px,transparent 6px)`
+      });
+      OVQ.push({id:'llbl', raw:true,
+        css:`position:absolute;left:${lx-44}px;top:${lTop+lift/2}px;transform:translateY(-50%);pointer-events:none`,
+        text:(lift/100).toFixed(2)+' m',
+        cls:'ldl'
+      });
+    }
+  }
+
+  // Flush queue to DOM
+  for(const item of OVQ){
+    seen.add(item.id);
+    let el=ex[item.id];
+    if(!el){ el=document.createElement('div'); el.dataset.oid=item.id; ov.appendChild(el); }
+    if(item.raw){
+      el.style.cssText=item.css;
+      if(item.text!==undefined){ el.textContent=item.text; el.className=item.cls||''; }
+    } else {
+      el.className=item.cls;
+      el.style.left=item.x+'px';
+      el.style.top=item.y+'px';
+      el.textContent=item.text;
+    }
+  }
+  // Remove stale
+  for(const[k,el] of Object.entries(ex)){ if(!seen.has(k)) el.remove(); }
+  OVQ=[];
+}
+
+// ── Handle position ──
+function posHandle(pull){
+  const dh=document.getElementById('dh');
+  const ht=document.getElementById('ht');
+  if(sc.ropeEndX===undefined){ dh.style.display='none'; return; }
+  dh.style.display='block';
+  dh.style.left=sc.ropeEndX+'px';
+  dh.style.top=(sc.ropeEndRestY+pull)+'px';
+  ht.style.left=(sc.ropeEndX+14)+'px';
+  ht.style.top=(sc.ropeEndRestY+4)+'px';
+  ht.style.opacity=(pull<3&&!dragging)?'1':'0';
+}
+
+// ═══════════════════════════════════════════════════════════
+//  DRAG INTERACTION
+// ═══════════════════════════════════════════════════════════
+const dhEl=document.getElementById('dh');
+dhEl.addEventListener('mousedown',startDrag);
+dhEl.addEventListener('touchstart',startDrag,{passive:false});
+
+function startDrag(e){
+  e.preventDefault();
+  dragging=true; dhEl.classList.add('act');
+  const cy=e.touches?e.touches[0].clientY:e.clientY;
+  dragY0=cy; dragPull0=dragPull; springV=0;
+  document.addEventListener('mousemove',onMove);
+  document.addEventListener('touchmove',onMove,{passive:false});
+  document.addEventListener('mouseup',endDrag);
+  document.addEventListener('touchend',endDrag);
+}
+function onMove(e){
+  if(!dragging) return;
+  e.preventDefault();
+  const cy=e.touches?e.touches[0].clientY:e.clientY;
+  dragTarget=Math.max(0,Math.min(MAXPULL, dragPull0+(cy-dragY0)));
+}
+function endDrag(){
+  dragging=false; dhEl.classList.remove('act'); dragTarget=0;
+  document.removeEventListener('mousemove',onMove);
+  document.removeEventListener('touchmove',onMove);
+  document.removeEventListener('mouseup',endDrag);
+  document.removeEventListener('touchend',endDrag);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  ANIMATION LOOP (spring physics)
+// ═══════════════════════════════════════════════════════════
+let lastTS=0;
+function loop(ts){
+  requestAnimationFrame(loop);
+  const dt=Math.min((ts-lastTS)/1000,.04); lastTS=ts;
+
+  // Spring toward target
+  if(dragging){
+    dragPull+=(dragTarget-dragPull)*.42; springV=0;
+  } else {
+    const acc=SK*(-dragPull)-SD*springV;
+    springV+=acc*dt; dragPull+=springV*dt;
+    if(Math.abs(dragPull)<.35&&Math.abs(springV)<.35){ dragPull=0; springV=0; }
+  }
+
+  // Pulley rotation
+  const delta=dragPull-prevPull;
+  if(Math.abs(delta)>.04){
+    if(sc.mode==='block'||sc.mode==='cascade'||sc.mode==='tandem'){
+      const PR=sc.PR||16;
+      topAng+=delta/PR*.9;
+      botAng-=delta/PR*.9;
+    } else if(sc.pulleys){
+      for(let i=0;i<sc.pulleys.length;i++){
+        const r=sc.pulleys[i].r||18;
+        pAng[i]+=(delta/r)*(i%2===0?1:-1)*.85;
+      }
+    }
+  }
+  prevPull=dragPull;
+
+  draw();
+
+  // Update distance display
+  const p=Math.max(0,dragPull);
+  document.getElementById('drs').textContent=(p/100).toFixed(2)+' m';
+  document.getElementById('dls').textContent=(N>0?p/N/100:0).toFixed(2)+' m';
+}
+requestAnimationFrame(t=>{ lastTS=t; requestAnimationFrame(loop); });
+
+// ═══════════════════════════════════════════════════════════
+//  CALCULATIONS
+// ═══════════════════════════════════════════════════════════
+function calcF(){
+  const nm=Math.floor(N/2);
+  return N>0?(W+Wp*nm)/N:0;
+}
+
+function updateUI(){
+  const nm=Math.floor(N/2), wpt=Wp*nm, tot=W+wpt;
+  const F=N>0?tot/N:0;
+  const el=document.getElementById('rvl');
+  if(lastF!==null&&Math.abs(F-lastF)>.05){
+    el.classList.remove('nfl'); void el.offsetWidth; el.classList.add('nfl');
+  }
+  lastF=F;
+  document.getElementById('dw').textContent=W+' N';
+  document.getElementById('dwp').textContent=Wp+' N';
+  el.innerHTML=F.toFixed(2)+'<sup>N</sup>';
+  document.getElementById('fml').innerHTML='<span style="color:var(--t2)">F</span> = (Peso + Peso Poleas) / n';
+  document.getElementById('fex').innerHTML=
+    'F = (<span class="v">'+W+'</span> + <span class="v">'+wpt.toFixed(1)+'</span>) / <span class="v">'+N+'</span><br>'+
+    'F = <span class="v">'+tot.toFixed(1)+'</span> / <span class="v">'+N+'</span> = <span class="v">'+F.toFixed(2)+'</span> N';
+  document.getElementById('dvm').textContent='×'+N;
+  updatePanel(nm,wpt,tot,F);
+}
+
+function updatePanel(nm,wpt,tot,F){
+  // pill
+  const nf=Math.ceil(N/2);
+  const pillTxt=N===1?'1 polea fija':
+    N<=4?N+' poleas — '+nm+' móv. / '+nf+' fija'+(nf>1?'s':''):
+    'Polipasto — '+N+' poleas';
+  document.getElementById('oc-pill-txt').textContent=pillTxt;
+
+  // PASO 1 — fórmula teórica (stays static, already in HTML)
+
+  // PASO 2 — sustitución
+  const s2=document.getElementById('oc-step2');
+  if(Wp>0){
+    s2.innerHTML=
+      '<span class="eq">F</span><span class="sym"> = </span>'+
+      '<span class="sym">(</span>'+
+      '<span class="val">'+W+'</span>'+
+      '<span class="sym"> N + </span>'+
+      '<span class="val">'+wpt.toFixed(1)+'</span>'+
+      '<span class="sym"> N) / </span>'+
+      '<span class="val">'+N+'</span>';
+  } else {
+    s2.innerHTML=
+      '<span class="eq">F</span><span class="sym"> = </span>'+
+      '<span class="val">'+W+'</span>'+
+      '<span class="sym"> N / </span>'+
+      '<span class="val">'+N+'</span>';
+  }
+
+  // PASO 3 — resultado
+  document.getElementById('oc-step3').innerHTML=
+    '<span class="eq">F</span>'+
+    '<span class="sym"> = </span>'+
+    '<span class="val">'+F.toFixed(2)+'</span>'+
+    '<span class="sym"> N</span>';
+
+  // Variables table
+  document.getElementById('oc-var-w').textContent=W+' N';
+  document.getElementById('oc-var-nm').textContent=nm+(nm===1?' polea':' poleas');
+  document.getElementById('oc-var-wp').textContent=wpt.toFixed(1)+' N';
+  document.getElementById('oc-var-n').textContent=N+(N===1?' polea':' poleas');
+  document.getElementById('oc-var-vm').textContent='×'+N;
+
+  // Conservation box
+  document.getElementById('oc-n-inline').textContent=N;
+  document.getElementById('oc-dist-inline').textContent=N+' m';
+}
+
+// ── OFF-CANVAS open / close ──
+function openPanel(){
+  document.getElementById('oc-panel').classList.add('open');
+  document.getElementById('oc-backdrop').classList.add('open');
+  document.body.style.overflow='hidden';
+}
+function closePanel(){
+  document.getElementById('oc-panel').classList.remove('open');
+  document.getElementById('oc-backdrop').classList.remove('open');
+  document.body.style.overflow='';
+}
+document.getElementById('open-calc').addEventListener('click',openPanel);
+document.getElementById('close-calc').addEventListener('click',closePanel);
+document.getElementById('oc-backdrop').addEventListener('click',closePanel);
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closePanel(); });
+
+// ── Architecture selector ──
+document.querySelectorAll('.arch-opt').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    archMode=btn.dataset.arch;
+    document.querySelectorAll('.arch-opt').forEach(b=>b.classList.remove('sel'));
+    btn.classList.add('sel');
+    dragPull=0; dragTarget=0; springV=0; prevPull=0;
+    topAng=0; botAng=0;
+    buildScene(); updateUI();
+  });
+});
+
+function syncN(){
+  N=Math.max(1,Math.min(50,parseInt(document.getElementById('ns').value)||1));
+  document.getElementById('nd').textContent=N;
+  document.getElementById('ns').value=N;
+  pAng=new Array(N).fill(0);
+  topAng=0; botAng=0;
+  dragPull=0; dragTarget=0; springV=0; prevPull=0;
+  buildScene(); updateUI();
+  const nm=Math.floor(N/2), nf=Math.ceil(N/2);
+
+  // badge text
+  const archLabel=N>=5?({coaxial:'Coaxial',cascade:'Compuesto',tandem:'Tándem'}[archMode]||''):'';
+  document.getElementById('badge').textContent=
+    N===1?'1 polea fija':
+    N<=4?N+' poleas — '+nm+' móv. / '+nf+' fija'+(nf>1?'s':''):
+    N+' poleas · '+archLabel;
+
+  // architecture section visibility
+  document.getElementById('sec-arch').classList.toggle('vis', N>=5);
+
+  // schema note
+  const sn=document.getElementById('sn');
+  if(N>=5){
+    const desc={coaxial:'Coaxial (grúa industrial)',cascade:'Compuesto en cascada (rescate)',tandem:'Tándem en viga (puente grúa)'};
+    sn.className='sn on';
+    sn.textContent=desc[archMode]+' — '+N+' poleas · '+nf+' fijas + '+nm+' móviles';
+  } else { sn.className='sn'; }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  EVENT LISTENERS
+// ═══════════════════════════════════════════════════════════
+document.getElementById('ns').addEventListener('input',syncN);
+document.getElementById('bp').addEventListener('click',function(){
+  N=Math.min(50,N+1); document.getElementById('ns').value=N; syncN();
+  this.style.transform='scale(.82)'; setTimeout(()=>this.style.transform='',120);
+});
+document.getElementById('bm').addEventListener('click',function(){
+  N=Math.max(1,N-1); document.getElementById('ns').value=N; syncN();
+  this.style.transform='scale(.82)'; setTimeout(()=>this.style.transform='',120);
+});
+document.getElementById('wi').addEventListener('input',function(){
+  W=Math.max(0,parseFloat(this.value)||0); updateUI();
+});
+document.getElementById('wpi').addEventListener('input',function(){
+  Wp=Math.max(0,parseFloat(this.value)||0); updateUI();
+});
+
+function mkTog(rid,sid,cb){
+  let on=true;
+  document.getElementById(rid).addEventListener('click',()=>{
+    on=!on; document.getElementById(sid).classList.toggle('on',on); cb(on);
+  });
+}
+mkTog('trd','tsd',v=>showDyn=v);
+mkTog('trt','tst',v=>showTen=v);
+mkTog('trw','tsw',v=>showWt=v);
+
+// ── INIT ──
+resize(); syncN(); updateUI();
+</script>
+</body>
+</html>
